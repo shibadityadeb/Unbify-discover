@@ -60,3 +60,12 @@ def test_bounded_journey_forces_transition():
     ctx = build_context(s)
     assert ctx["chapter_done"] is True
     assert eligible_actions(s, ctx) == ["transition_chapter"]
+
+
+def test_fatigue_reduces_load():
+    s = make_session()
+    s.engagement = {"skipped": 1, "help_count": 1, "recent_latency": [20000, 25000]}
+    ctx = build_context(s)
+    assert ctx["fatigued"] is True
+    elig = eligible_actions(s, ctx)
+    assert "show_rank" not in elig and "show_object_sort" not in elig

@@ -314,3 +314,73 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
   .ws-action { flex-direction: column; gap: 4px; }
   .ws-action .lbl { white-space: normal; }
 }
+
+/* ============ experience refinement: narrative layer ============ */
+
+/* evidence constellation — memory fragments, never analytics tags */
+.dx-field { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.dx-frag {
+  position: absolute; font-family: var(--serif); font-style: italic;
+  font-size: clamp(13px, 1.9vh, 17px); color: #8d6a2b;
+  opacity: 0; transform: translate(-50%, -50%);
+  transition: opacity 2.4s ease, left 2.6s cubic-bezier(.3,.5,.2,1), top 2.6s cubic-bezier(.3,.5,.2,1);
+  animation: fragDrift 14s ease-in-out infinite alternate;
+  white-space: nowrap;
+}
+.dx-frag.fading { opacity: 0 !important; }
+@keyframes fragDrift { from { margin-top: 0; } to { margin-top: -10px; } }
+
+/* chapter thread — narrative movement, never question counts */
+.dx-thread {
+  position: absolute; left: 44px; bottom: 26px; z-index: 5;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.dx-thread .tl { font-family: var(--sans); font-size: 9px; letter-spacing: .32em; text-transform: uppercase; color: #ab9668; }
+.dx-thread .tline { display: flex; gap: 5px; align-items: center; }
+.dx-thread i {
+  display: block; width: 22px; height: 1.5px; background: rgba(178,146,94,.3);
+  transition: background .8s ease;
+}
+.dx-thread i.on { background: rgba(200,150,84,.85); }
+.dx-thread i.on:last-of-type { position: relative; }
+
+/* micro-bridge — a quiet narrative reason */
+.dx-bridge {
+  font-family: var(--serif); font-style: italic;
+  font-size: clamp(15px, 2.2vh, 19px); color: #97876e;
+  margin-bottom: 20px; opacity: 0; transform: translateY(6px);
+  transition: opacity .9s ease, transform .9s ease;
+}
+.dx-bridge.in { opacity: 1; transform: translateY(0); }
+
+/* help mode — simplify, never pressure, never grade */
+.dx-help {
+  margin-top: 14px; font-family: var(--serif); font-style: italic;
+  font-size: clamp(14px, 2vh, 17px); color: #a3762f;
+  animation: softIn 1s ease both;
+}
+.dx-assist {
+  position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%) translateY(8px);
+  display: flex; align-items: center; gap: 16px; z-index: 8;
+  opacity: 0; transition: opacity 1.2s ease, transform 1.2s ease;
+  font-family: var(--serif); font-style: italic; font-size: 15px; color: #97876e;
+}
+.dx-assist.in { opacity: 1; transform: translateX(-50%) translateY(0); }
+.dx-assist button {
+  background: none; border: 1px solid rgba(178,146,94,.45); border-radius: 30px;
+  padding: 7px 16px; cursor: pointer;
+  font-family: var(--sans); font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase;
+  color: #8d7a58; transition: all .4s ease;
+}
+.dx-assist button:hover { border-color: rgba(216,150,80,.8); color: #8a5f24; }
+
+.dx-closing-line { font-size: clamp(21px, 3.2vh, 32px); }
+.dx-story-end { margin-top: 6vh; }
+
+@media (max-width: 880px) {
+  .dx-thread { left: 22px; bottom: 18px; }
+  .dx-frag { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dx-frag { animation: none; transition-duration: .01s; }
+}

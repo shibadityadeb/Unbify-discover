@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from . import statemachine
 from .catalog import INTERACTIONS
-from .dimensions import dim_phrase
+from .dimensions import dim_fragment, dim_phrase
 from .events import emit
 from .llm import gateway
 from .models import (CalibrationFeedback, DiscoverSession, InteractionInstance,
@@ -22,6 +22,62 @@ from .rewards import CALIBRATION_REWARD, record as record_reward
 from .signals import apply_evidence, top_dims, total_evidence
 
 _policy = RuleBasedExperiencePolicy()
+
+# micro-bridges: tiny narrative reasons, used selectively — never under every question
+BRIDGES = {
+    "contradiction": "Something in your last few choices doesn't completely agree.",
+    "probe_thin": "There's one part of your pattern we haven't quite understood yet.",
+    "post_reveal": "Let's look at this from another angle.",
+    "post_correction": "Got it. Then something else may be creating that pattern.",
+    "deepen": "This might seem unrelated for a second.",
+    "tension": "There's a tension appearing here.",
+}
+
+
+def _maybe_bridge(session, definition, reason_code: str) -> str | None:
+    """Attach a narrative bridge occasionally: definition-supplied first, then
+    reason-based, and never two interactions in a row."""
+    counters = session.counters or {}
+    if definition.get("bridge"):
+        return definition["bridge"]
+    if counters.get("since_bridge", 9) < 2:
+        return None
+    if reason_code == "post_correction" and any(
+            i.get("answer") == "no" for i in (session.revealed_insights or [])[-1:]):
+        return BRIDGES["post_correction"]
+    if reason_code in BRIDGES:
+        return BRIDGES[reason_code]
+    return None
+
+
+def _fragments(session) -> list[dict]:
+    out = []
+    for t in top_dims(session, 6, min_confidence=0.18):
+        out.append({"t": dim_fragment(t["dim"], t["estimate"]), "s": round(t["confidence"], 2)})
+    return out
+
+
+CHAPTER_CLOSINGS = {
+    "REFLECTION": lambda session, tops: [
+        "We've collected enough.",
+        "Not enough to define you — enough to notice something.",
+        (f"So far you've mostly been choosing {dim_phrase(tops[0]['dim'], tops[0]['estimate'])}."
+         if tops else "So far you've been choosing instinctively."),
+        "Now let's look at the pattern those choices created.",
+    ],
+    "ALIGNMENT": lambda session, tops: [
+        "Understanding the pattern is one thing.",
+        "But it doesn't exist in isolation.",
+        "You have work. Experience. Things you've already built. Things you can't simply ignore.",
+        "Let's put the person we've been discovering back into the real world.",
+    ],
+    "TRANSFORMATION": lambda session, tops: [
+        "We know more now.",
+        "Not just what seems natural to you — but what you already have, and where the friction sits.",
+        "There's one final thing to do.",
+        "Bring it together.",
+    ],
+}
 
 
 # ---------------- next experience ----------------
@@ -54,7 +110,9 @@ def next_step(db: Session, session: DiscoverSession) -> dict:
 
     if action == "transition_chapter":
         nxt = statemachine.TRANSITIONS[state][0]
-        return _envelope(session, {"type": "chapter_transition", "next": nxt, "_decision": decision.id})
+        closing_fn = CHAPTER_CLOSINGS.get(nxt)
+        closing = closing_fn(session, top_dims(session, 1)) if closing_fn else []
+        return _envelope(session, {"type": "chapter_transition", "next": nxt, "closing": closing})
 
     if action in ("show_reveal", "explore_contradiction"):
         payload = _make_reveal(db, session, contradiction=(action == "explore_contradiction"))
@@ -85,18 +143,41 @@ def next_step(db: Session, session: DiscoverSession) -> dict:
     used = list(session.used_definitions or [])
     used.append(definition["id"])
     session.used_definitions = used
+    # why are we asking this? (internal intent, occasionally surfaced as a bridge)
+    reason_code = ("probe_thin" if any(t in decision.context.get("target_dims", [])
+                                       for t in definition.get("targets", [])) else "deepen")
+    counters_now = session.counters or {}
+    if counters_now.get("since_reveal", 9) == 0 and counters_now.get("reveals_this_chapter", 0) > 0:
+        reason_code = "post_reveal"
+    intent = {
+        "targetDimensions": definition.get("targets", []),
+        "reasonCode": reason_code,
+        "expectedInformationGain": round(decision.context.get("info_gain", {}).get(action, 0.3), 3),
+    }
+    content = {**definition["content"], "intent": intent}
     public = _public_content(definition)
-    inst = _instance(db, session, definition["id"], definition["type"], definition["content"], public, decision.id)
-    emit(db, session.id, "interaction.impression", {"definition": definition["id"], "type": definition["type"]})
+    bridge = _maybe_bridge(session, definition, reason_code)
+    counters = dict(session.counters or {})
+    if bridge:
+        public = {**public, "bridge": bridge}
+        counters["since_bridge"] = 0
+    else:
+        counters["since_bridge"] = counters.get("since_bridge", 0) + 1
+    session.counters = counters
+    inst = _instance(db, session, definition["id"], definition["type"], content, public, decision.id)
+    emit(db, session.id, "interaction.impression",
+         {"definition": definition["id"], "type": definition["type"], "reason": reason_code})
     return _envelope(session, inst.public_content)
 
 
 def _pick_definition(session: DiscoverSession, itype: str | None) -> dict | None:
+    from .professional import status_allows
     chapter = session.journey_status
     used = set(session.used_definitions or [])
     practical_needed = chapter == "ALIGNMENT"
     pool = [d for d in INTERACTIONS
             if chapter in d["chapters"] and d["id"] not in used
+            and status_allows(session, d.get("requires_status"))
             and (itype is None or d["type"] == itype)]
     if practical_needed:
         unanswered_practical = [d for d in pool if d.get("practical_key")
@@ -128,7 +209,7 @@ def _public_content(definition: dict) -> dict:
     for k in ("left", "right"):
         if k in c:
             pub[k] = {"label": c[k]["label"]}
-    for k in ("maxSelect", "minSelect", "placeholder"):
+    for k in ("maxSelect", "minSelect", "placeholder", "help"):
         if k in c:
             pub[k] = c[k]
     return pub
@@ -159,6 +240,10 @@ def submit_response(db: Session, session: DiscoverSession, instance_id: str,
     engagement = dict(session.engagement or {})
     if payload.get("skipped"):
         engagement["skipped"] = engagement.get("skipped", 0) + 1
+    if payload.get("helpUsed"):
+        engagement["help_count"] = engagement.get("help_count", 0) + 1
+    if latency_ms:
+        engagement["recent_latency"] = ((engagement.get("recent_latency") or []) + [min(60000, latency_ms)])[-5:]
     session.engagement = engagement
     emit(db, session.id, "interaction.responded",
          {"type": inst.type, "definition": inst.definition_id, "skipped": bool(payload.get("skipped"))})
@@ -229,11 +314,20 @@ def _apply_typed_response(db, session, inst, response, counters):
             pc = dict(session.practical_context or {})
             pc["notes"] = (pc.get("notes", []) + [{"prompt": c.get("headline"), "text": text}])[-6:]
             session.practical_context = pc
-            extraction = gateway.generate(db, "micro_reflection_extraction_v1",
-                                          {"prompt": c.get("headline"), "text": text})
-            if extraction and extraction.get("signals"):
-                clean = [s for s in extraction["signals"][:3] if isinstance(s, dict)]
-                apply_evidence(db, session, clean, "micro_reflection", inst.id, response.id)
+            key = _practical_key(inst)
+            if key:
+                pc = dict(session.practical_context or {})
+                pc[key] = text
+                session.practical_context = pc
+            if _definition_field(inst, "extract") == "professional":
+                from .professional import extract_profession
+                extract_profession(db, session, text)
+            else:
+                extraction = gateway.generate(db, "micro_reflection_extraction_v1",
+                                              {"prompt": c.get("headline"), "text": text})
+                if extraction and extraction.get("signals"):
+                    clean = [s for s in extraction["signals"][:3] if isinstance(s, dict)]
+                    apply_evidence(db, session, clean, "micro_reflection", inst.id, response.id)
         counters["since_reveal"] = counters.get("since_reveal", 0) + 1
 
     elif itype == "reveal":
@@ -274,6 +368,13 @@ def _apply_typed_response(db, session, inst, response, counters):
         statemachine.advance(session, "STORY_COMPLETE")
         _checkpoint_profile(db, session, "story_complete")
         emit(db, session.id, "discover.story_complete", {})
+
+
+def _definition_field(inst, field: str):
+    for d in INTERACTIONS:
+        if d["id"] == inst.definition_id:
+            return d.get(field)
+    return None
 
 
 def _practical_key(inst) -> str | None:
@@ -460,8 +561,10 @@ def _make_final(db, session) -> dict:
                            "note": str(out["nextAction"].get("note", next_action["note"]))[:80]}
     server = {"facts": facts}
     public = {"opening": opening, "mirror": mirror, "nextAction": next_action,
-              "closing": ["You came here looking for direction.", "What emerged wasn't one answer.",
-                          "It was a pattern.", "Now we can do something with it."]}
+              "closing": ["This isn't a verdict.",
+                          "It's the clearest picture we can build from what you've shown us so far.",
+                          "And it can keep changing with you.",
+                          "Your discovery is complete."]}
     return {"server": server, "public": public}
 
 
@@ -507,7 +610,8 @@ def _envelope(session, interaction: dict) -> dict:
     within = min(1.0, (session.counters or {}).get("chapter_interactions", 0) / 8)
     progress = min(0.98, (idx + within) / len(order))
     return {"interaction": interaction, "state": session.journey_status,
-            "chapter": session.journey_status, "estimatedProgress": round(progress, 3)}
+            "chapter": session.journey_status, "estimatedProgress": round(progress, 3),
+            "fragments": _fragments(session)}
 
 
 def new_session_defaults() -> dict:

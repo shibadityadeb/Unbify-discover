@@ -18,7 +18,9 @@
     REFLECTION: "reflection", ALIGNMENT: "alignment", TRANSFORMATION: "transformation",
   };
 
-  let root, stage, chapterEl, progressEl;
+  let root, stage, chapterEl, progressEl, fieldEl, threadEl;
+  let assistTimer = null;
+  let helpUsed = false;
   let sessionId = localStorage.getItem("unbify-discover-session") || null;
   let shownAt = 0;
   let busy = false;
@@ -30,14 +32,18 @@
     root.id = "dx";
     root.innerHTML = `
       <div class="dx-haze"></div>
+      <div class="dx-field"></div>
       <div class="dx-brand"><img class="brand-img" src="assets/unbify-logo.png" alt="unbify"></div>
       <p class="dx-chapter"></p>
+      <div class="dx-thread"></div>
       <div class="dx-stage"></div>
       <div class="dx-progress"></div>`;
     document.body.appendChild(root);
     stage = root.querySelector(".dx-stage");
     chapterEl = root.querySelector(".dx-chapter");
     progressEl = root.querySelector(".dx-progress");
+    fieldEl = root.querySelector(".dx-field");
+    threadEl = root.querySelector(".dx-thread");
   }
 
   async function api(path, body, method) {
@@ -90,6 +96,9 @@
   async function respondMain(interactionId, response) {
     if (busy) return;
     busy = true;
+    clearTimeout(assistTimer);
+    root.querySelector(".dx-assist")?.remove();
+    if (helpUsed && response && !response.helpUsed) response.helpUsed = true;
     const elapsedMs = Date.now() - shownAt;
     try {
       const data = await api(`/sessions/${sessionId}/responses`, { interactionId, response, elapsedMs });
@@ -102,14 +111,59 @@
     }
   }
 
+  const CHAPTER_ORDER = ["SELF_DISCOVERY", "REFLECTION", "ALIGNMENT", "TRANSFORMATION"];
+
+  function updateField(fragments, chapter) {
+    if (!fieldEl) return;
+    const wanted = new Map((fragments || []).map(f => [f.t, f.s]));
+    fieldEl.querySelectorAll(".dx-frag").forEach(el => {
+      if (!wanted.has(el.dataset.t)) { el.classList.add("fading"); setTimeout(() => el.remove(), 2200); }
+    });
+    let salt = 0;
+    for (const ch of (chapter || "")) salt += ch.charCodeAt(0);
+    wanted.forEach((s, t) => {
+      let el = fieldEl.querySelector(`.dx-frag[data-t="${CSS.escape(t)}"]`);
+      if (!el) {
+        el = document.createElement("span");
+        el.className = "dx-frag";
+        el.dataset.t = t;
+        el.textContent = t;
+        fieldEl.appendChild(el);
+      }
+      let h = salt;
+      for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      el.style.left = (8 + (h % 80)) + "%";
+      el.style.top = (12 + ((h >> 7) % 70)) + "%";
+      el.style.opacity = Math.min(0.34, 0.1 + s * 0.28);
+    });
+  }
+
+  function updateThread(state) {
+    if (!threadEl) return;
+    const idx = CHAPTER_ORDER.indexOf(state);
+    if (idx < 0) { threadEl.innerHTML = ""; return; }
+    const label = ["01 SELF DISCOVERY", "02 REFLECTION", "03 ALIGNMENT", "04 TRANSFORMATION"][idx];
+    threadEl.innerHTML = `<span class="tl">${label}</span><span class="tline">` +
+      CHAPTER_ORDER.map((_, i) => `<i class="${i <= idx ? "on" : ""}"></i>`).join("") + `</span>`;
+  }
+
   function handlePayload(data) {
     const it = data.interaction;
     chapterEl.textContent = CHAPTER_LABELS[data.chapter] || "";
     progressEl.style.width = Math.round((data.estimatedProgress || 0) * 100) + "%";
+    updateField(data.fragments, data.chapter);
+    updateThread(data.state);
 
     if (it.type === "chapter_transition") {
       const opener = STATE_TO_OPENER[it.next];
       if (opener) {
+        if (it.closing && it.closing.length) {
+          renderClosing(newSceneFresh(), it.closing, () => {
+            close();
+            window.dispatchEvent(new CustomEvent("discover:chapter", { detail: { next: opener } }));
+          });
+          return;
+        }
         close();
         window.dispatchEvent(new CustomEvent("discover:chapter", { detail: { next: opener } }));
       } else {
@@ -124,6 +178,60 @@
   }
 
   /* ---------------- rendering ---------------- */
+
+  function renderClosing(scene, lines, done) {
+    scene.classList.add("dx-final");
+    const wrap = document.createElement("div");
+    wrap.className = "dx-reveal-lines";
+    lines.forEach((line, i) => {
+      const p = document.createElement("p");
+      p.className = "dx-reveal-line dx-closing-line";
+      p.textContent = line;
+      wrap.appendChild(p);
+      setTimeout(() => p.classList.add("in"), 500 + i * 1350);
+    });
+    scene.appendChild(wrap);
+    setTimeout(done, 500 + lines.length * 1350 + 1100);
+  }
+
+  /* gentle latency assist — configurable by interaction type; never pressure */
+  const ASSIST_DELAY = { micro_reflection: 40000, forced_rank: 30000, object_sort: 30000, default: 20000 };
+
+  function armAssist(it) {
+    clearTimeout(assistTimer);
+    helpUsed = false;
+    if (["reveal", "possible_lives", "final", "workspace"].includes(it.type)) return;
+    const delay = ASSIST_DELAY[it.type] || ASSIST_DELAY.default;
+    assistTimer = setTimeout(() => showAssist(it), delay);
+  }
+
+  function showAssist(it) {
+    if (!stage.firstElementChild || root.querySelector(".dx-assist")) return;
+    const bar = document.createElement("div");
+    bar.className = "dx-assist";
+    bar.innerHTML = `<span>Taking a minute?</span>`;
+    const helpBtn = document.createElement("button");
+    helpBtn.textContent = "Help me choose";
+    helpBtn.addEventListener("click", () => {
+      helpUsed = true;
+      bar.remove();
+      const scene = stage.firstElementChild;
+      if (scene && !scene.querySelector(".dx-help")) {
+        const h = document.createElement("p");
+        h.className = "dx-help";
+        h.textContent = it.help || "Go with your first instinct — there's no better answer here.";
+        const anchor = scene.querySelector(".dx-support") || scene.querySelector(".dx-headline");
+        if (anchor) anchor.after(h); else scene.prepend(h);
+      }
+    });
+    const skipBtn = document.createElement("button");
+    skipBtn.textContent = "Skip this";
+    skipBtn.addEventListener("click", () => { bar.remove(); respond(it.id, { skipped: true, helpUsed }); });
+    bar.appendChild(helpBtn);
+    bar.appendChild(skipBtn);
+    root.appendChild(bar);
+    requestAnimationFrame(() => bar.classList.add("in"));
+  }
 
   function newSceneFresh() {
     stage.innerHTML = "";
@@ -415,7 +523,15 @@
 
   function render(it) {
     shownAt = Date.now();
+    armAssist(it);
     const scene = newScene();
+    if (it.bridge) {
+      const b = document.createElement("p");
+      b.className = "dx-bridge";
+      b.textContent = it.bridge;
+      scene.appendChild(b);
+      setTimeout(() => b.classList.add("in"), 150);
+    }
     switch (it.type) {
       case "visual_choice": return renderVisual(scene, it);
       case "scenario_choice": return renderScenario(scene, it);
@@ -457,7 +573,7 @@
       const b = document.createElement("button");
       b.className = "dx-opt";
       b.textContent = o.label;
-      setTimeout(() => b.classList.add("in"), 500 + i * 160);
+      setTimeout(() => b.classList.add("in"), (it.bridge ? 1300 : 500) + i * 160);
       b.addEventListener("click", () => {
         b.classList.add("picked");
         setTimeout(() => respond(it.id, { optionId: o.id }), 380);
@@ -702,10 +818,21 @@
     scene.appendChild(next);
     setTimeout(() => { next.style.opacity = "1"; }, mapDelay + 900);
 
+    const closing = document.createElement("div");
+    closing.className = "dx-reveal-lines dx-story-end";
+    (it.closing || []).forEach((line, i) => {
+      const p = document.createElement("p");
+      p.className = "dx-reveal-line dx-closing-line";
+      p.textContent = line;
+      closing.appendChild(p);
+      setTimeout(() => p.classList.add("in"), mapDelay + 1600 + i * 1350);
+    });
+    scene.appendChild(closing);
     const done = document.createElement("button");
-    done.className = "dx-commit ready dx-continue";
-    done.textContent = "Carry it forward";
+    done.className = "dx-commit dx-continue";
+    done.textContent = "Enter your workspace";
     scene.appendChild(done);
+    setTimeout(() => done.classList.add("ready"), mapDelay + 1600 + (it.closing || []).length * 1350 + 600);
     done.addEventListener("click", () => respond(it.id, { done: true }));
   }
 

@@ -103,3 +103,25 @@ def test_resume(client):
     sid = data["sessionId"]
     resumed = client.post("/v1/discover/sessions", json={"sessionId": sid}).json()
     assert resumed["sessionId"] == sid
+
+
+def test_status_branching(client):
+    """A founder never gets employee-branch questions and vice versa."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from app.catalog import INTERACTIONS
+    branches = {d["id"]: d.get("requires_status") for d in INTERACTIONS if d.get("requires_status")}
+    assert "sc_biz_stage" in branches and branches["sc_biz_stage"] == ["founder"]
+    assert branches["sc_own_scope"] == ["employed"]
+    assert branches["sc_student_real"] == ["student"]
+
+
+def test_no_third_party_perception_questions(client):
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from app.catalog import INTERACTIONS
+    text = str(INTERACTIONS).lower()
+    for phrase in ["people come to you", "friends say", "would your manager", "coworkers say"]:
+        assert phrase not in text

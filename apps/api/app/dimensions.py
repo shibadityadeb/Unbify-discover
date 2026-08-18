@@ -69,6 +69,42 @@ def is_dim(dim: str) -> bool:
     return dim in DIMENSIONS
 
 
+# short memory-fragment words (screen memory, never analytics tags)
+FRAGMENTS = {
+    "autonomy": ("room to move", "solid rails"), "purpose": ("meaning", "what works"),
+    "mastery": ("mastery", "range"), "stability": ("solid ground", "open horizon"),
+    "exploration": ("the unfamiliar", "the familiar"), "impact": ("visible effect", "quiet work"),
+    "income_urgency": ("real pressure", "breathing room"),
+    "systems_thinking": ("the connections", "one thing at a time"),
+    "pattern_recognition": ("what repeats", "fresh eyes"), "analytical": ("taking apart", "feel"),
+    "abstraction": ("ideas", "the tangible"), "ambiguity_tolerance": ("moving early", "clarity first"),
+    "persuasion": ("moving people", "the work speaks"), "empathy": ("what people feel", "what people do"),
+    "teaching": ("making it click", "private process"), "facilitation": ("the room", "solo depth"),
+    "leadership": ("the front", "the side"), "relationship_building": ("long threads", "clean bounds"),
+    "initiative": ("starting first", "right moment"), "persistence": ("staying", "folding well"),
+    "planning": ("the map", "the road"), "velocity": ("fast and real", "slow and right"),
+    "detail_orientation": ("the last 5%", "big strokes"),
+    "originality": ("untried things", "proven things"), "storytelling": ("narrative", "plain facts"),
+    "synthesis": ("combining", "one lane"), "experimentation": ("testing", "deciding"),
+    "aesthetic_sensitivity": ("how it feels", "that it works"),
+    "risk_tolerance": ("real bets", "protected moves"), "sales_comfort": ("the ask", "discovered value"),
+    "revenue_ambition": ("real wealth", "enough"), "capital_availability": ("resources", "lean start"),
+    "time_availability": ("real hours", "stolen margins"),
+    "domain_expertise": ("deep knowledge", "beginner's eyes"), "network": ("people who answer", "new doors"),
+    "credentials": ("proof on paper", "proof by doing"), "audience": ("people listening", "no stage yet"),
+    "reputation": ("a known name", "clean slate"), "geographic_access": ("where it happens", "anywhere"),
+    "adaptability": ("retooling", "compounding"), "ai_leverage": ("multiplied", "deeply human"),
+    "implementation_affinity": ("shipping", "designing"), "automation_exposure": ("exposed", "durable"),
+}
+
+
+def dim_fragment(dim: str, score: float) -> str:
+    pair = FRAGMENTS.get(dim)
+    if not pair:
+        return dim.replace("_", " ")
+    return pair[0] if score >= 0 else pair[1]
+
+
 def dim_phrase(dim: str, score: float) -> str:
     meta = DIMENSIONS.get(dim)
     if not meta:

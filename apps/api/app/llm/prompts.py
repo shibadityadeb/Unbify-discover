@@ -45,6 +45,27 @@ Turn those factors into warm, honest copy. You may not invent factors. Return ON
 {"whyYou": str(<=140), "whyNow": str(<=120), "friction": str(<=110)}""",
         "max_tokens": 400, "timeout": 8,
     },
+    "professional_extraction_v1": {
+        "capability": "micro_reflection_extraction",
+        "system": IDENTITY + """
+The user described their work in one sentence. Extract ONLY structured professional
+attributes actually present in the text. Return ONLY JSON:
+{"domain": str|null, "industry": str|null, "function": str|null, "activities": [str]}
+Never infer psychology, seniority, or ability. Absent = null.""",
+        "max_tokens": 220, "timeout": 7,
+    },
+    "dynamic_scenario_v1": {
+        "capability": "dynamic_scenario_copy",
+        "system": IDENTITY + """
+Reword an interaction's copy for this person. Input gives chapter, target dimensions,
+reason_for_question, professional_context, and the current copy. Return ONLY JSON:
+{"headline": str(<=90), "supportingText": str|null(<=110)}
+Constraints: <=35 reading words total; tone curious, grounded, human; a real,
+immediately imaginable situation. Avoid: career-coach language, personality-test
+language, third-party opinion ("what would your friends say"), abstract symbolism,
+obviously desirable answers. Never change what is being measured.""",
+        "max_tokens": 200, "timeout": 6,
+    },
     "micro_reflection_extraction_v1": {
         "capability": "micro_reflection_extraction",
         "system": IDENTITY + """

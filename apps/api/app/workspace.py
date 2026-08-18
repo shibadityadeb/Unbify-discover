@@ -178,6 +178,7 @@ def available_actions(session: DiscoverSession) -> list[dict]:
         return dims.get(d, {}).get("estimate", 0.0)
 
     actions = [
+        {"id": "position", "label": "Analyze my current professional position", "hint": "Fit, friction, leverage, optionality"},
         {"id": "explore", "label": "Explore my possibilities", "hint": "Your ranked Opportunity Map"},
         {"id": "next_move", "label": "My best next move", "hint": "One high-value step, this week"},
         {"id": "test_direction", "label": "Test a direction", "hint": "A small, low-risk experiment"},
@@ -200,6 +201,33 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
     resonant = (session.practical_context or {}).get("resonant_life")
     primary = next((l for l in lives if l["key"] == resonant), lives[0] if lives else None)
 
+    if action_id == "position":
+        from .professional import get_position, current_status
+        prof = get_position(session)
+        status = current_status(session) or "not yet shared"
+        tops = sorted(dims.items(), key=lambda kv: -abs(kv[1].get("estimate", 0)) * kv[1].get("confidence", 0))[:2]
+        friction = next((c for c in (session.contradictions or [])), None)
+        unknown = sorted(((d, v.get("confidence", 0)) for d, v in dims.items() if v.get("confidence", 0) < 0.3),
+                         key=lambda x: x[1])[:2]
+        items = [
+            f"Current position — {status}" + (f", in {prof.get('domain')}" if prof.get("domain") else "") +
+            (f" ({prof.get('industry')})" if prof.get("industry") else "") + ".",
+        ]
+        if tops:
+            d, v = tops[0]
+            items.append(f"Alignment — your work fits best where {dim_phrase(d, v.get('estimate', 0))} matters; that pattern held across chapters.")
+        if friction:
+            items.append(f"Friction — the pull between {dim_phrase(friction['dim'], 1)} and {dim_phrase(friction['dim'], -1)} shapes what roles will wear on you.")
+        if prof.get("activities"):
+            items.append(f"Leverage — repeated exposure to {', '.join(prof['activities'][:3])} is compounding, whether or not your title says so.")
+        else:
+            items.append("Leverage — answer the professional questions and this section sharpens considerably.")
+        items.append("Transferability — your evidence spans more than one function, which creates more options than a single-track profile.")
+        items.append("Optionality — see 'Explore my possibilities' for the paths this position realistically opens.")
+        if unknown:
+            items.append(f"Still unknown — we have little evidence on {dim_phrase(unknown[0][0], 1)}; we'd rather ask than guess.")
+        return {"kind": "list", "headline": "Your professional position", "items": items,
+                "note": "Analysis, not a verdict — it updates as your evidence does."}
     if action_id == "explore":
         return {"kind": "map", "headline": "Your Opportunity Map",
                 "supportingText": "Three credible futures — explainable, none of them destiny.",

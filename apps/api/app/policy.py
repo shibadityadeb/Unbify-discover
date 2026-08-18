@@ -79,6 +79,8 @@ class RuleBasedExperiencePolicy(ExperiencePolicy):
         repetition_penalty = 0.5 if ctx.get("recent_actions", [])[-1:] == [action] else 0.0
         cognitive = COGNITIVE_COST.get(action, 0.3)
         load_penalty = cognitive * 0.8 if ctx.get("recent_heavy") else 0.0
+        if ctx.get("fatigued"):
+            load_penalty += cognitive * 1.2  # quietly become easier — never announce it
         chapter_relevance = ctx.get("chapter_relevance", {}).get(action, 0.5)
         reveal_bonus = 0.0
         if action == "show_reveal":
@@ -110,7 +112,14 @@ def build_context(session: DiscoverSession) -> dict:
     max_len = CHAPTER_MAX_INTERACTIONS.get(chapter, 9)
     min_evid = CHAPTER_MIN_EVIDENCE.get(chapter, 6)
     unexplored_contradiction = any(not c.get("explored") for c in (session.contradictions or []))
-    practical_keys = [k for k in (session.practical_context or {}) if k not in ("notes", "resonant_life")]
+    practical_keys = [k for k in (session.practical_context or {}) if k not in ("notes", "resonant_life", "professional", "_lives")]
+    # fatigue is a UX signal, never psychology: long latencies + skips + help requests
+    engagement = session.engagement or {}
+    recent_lat = (engagement.get("recent_latency") or [])[-3:]
+    fatigued = (
+        engagement.get("help_count", 0) + engagement.get("skipped", 0) >= 2
+        or (len(recent_lat) >= 2 and sum(recent_lat) / len(recent_lat) > 18000)
+    )
 
     chapter_done = False
     lives_ready = False
@@ -143,6 +152,9 @@ def build_context(session: DiscoverSession) -> dict:
         "target_dims": thin,
         "recent_actions": recent_actions,
         "recent_heavy": bool(recent_actions and recent_actions[-1] in HEAVY_ACTIONS),
+        "fatigued": fatigued,
+        "help_count": engagement.get("help_count", 0),
+        "skip_count": engagement.get("skipped", 0),
         "reveal_due": reveal_due,
         "contradiction_ready": chapter == "REFLECTION" and unexplored_contradiction and since_reveal >= 1,
         "chapter_done": chapter_done,
@@ -166,8 +178,12 @@ def eligible_actions(session: DiscoverSession, context: dict) -> list[str]:
         return ["generate_possible_lives"]
     for action, itype in ACTION_TO_TYPE.items():
         if itype == "micro_reflection":
-            if chapter == "REFLECTION" and (session.counters or {}).get("reflections", 0) < 2 and not context["recent_heavy"]:
+            if (chapter in ("REFLECTION", "ALIGNMENT")
+                    and (session.counters or {}).get("reflections", 0) < 3
+                    and not context["recent_heavy"] and not context.get("fatigued")):
                 out.append(action)
+            continue
+        if context.get("fatigued") and action in HEAVY_ACTIONS:
             continue
         out.append(action)
     if context["reveal_due"]:
