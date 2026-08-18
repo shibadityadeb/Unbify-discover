@@ -142,6 +142,7 @@ INTERACTIONS: list[dict] = [
                  "placeholder": "e.g. I manage logistics for a food company and fix broken processes",
                  "help": "Describe a normal week to a friend, not a recruiter."}},
     {"id": "sp_years", "type": "spectrum", "chapters": ["ALIGNMENT"], "practical_key": "years_experience",
+     "requires_status": ["employed", "founder", "freelance"],
      "targets": ["domain_expertise"], "cognitive_cost": 0.2,
      "content": {"headline": "How long have you been doing work in this world?", "supportingText": None,
                  "left": {"label": "Just starting", "dim": "domain_expertise", "dir": -1},

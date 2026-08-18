@@ -227,6 +227,31 @@ def action_detail(session_id: str, action_id: str, db: Session = Depends(get_db)
     return {"sessionId": session.id, **out}
 
 
+@router.get("/debug/sessions/{session_id}/decision")
+def debug_decision(session_id: str, db: Session = Depends(get_db)):
+    """Development-only decision inspector. Never exposed in production."""
+    from ..config import settings
+    from ..models import PolicyDecision
+    if settings.is_production:
+        raise HTTPException(404, "not found")
+    session = _get_session(db, session_id)
+    d = (db.query(PolicyDecision).filter_by(session_id=session_id)
+         .order_by(PolicyDecision.created_at.desc()).first())
+    dims = session.dimensions or {}
+    return {
+        "state": session.journey_status,
+        "knownFacts": {k: v for k, v in (session.practical_context or {}).items() if not k.startswith("_")},
+        "topUncertainties": sorted(((k, round(1 - v.get("confidence", 0), 2)) for k, v in dims.items()),
+                                   key=lambda x: -x[1])[:5],
+        "ineligible": (session.counters or {}).get("_last_rejected", {}),
+        "eligibleActions": d.eligible_actions if d else [],
+        "actionValues": d.action_values if d else {},
+        "chosenAction": d.chosen_action if d else None,
+        "propensity": d.propensity if d else None,
+        "policyVersion": d.policy_version if d else None,
+    }
+
+
 @router.post("/outcomes")
 def report_outcome(body: OutcomeIn, request: Request, db: Session = Depends(get_db)):
     _rate_limit(f"out:{request.client.host if request.client else 'x'}", 20)

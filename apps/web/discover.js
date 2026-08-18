@@ -8,9 +8,13 @@
   const API = "/v1/discover";
   const CHAPTER_LABELS = {
     SELF_DISCOVERY: "Chapter I · Self Discovery",
+    SELF_DISCOVERY_CLOSING: "Chapter I · Self Discovery",
     REFLECTION: "Chapter II · Reflection",
+    REFLECTION_CLOSING: "Chapter II · Reflection",
     ALIGNMENT: "Chapter III · Alignment",
+    ALIGNMENT_CLOSING: "Chapter III · Alignment",
     TRANSFORMATION: "Chapter IV · Transformation",
+    TRANSFORMATION_CLOSING: "Chapter IV · Transformation",
     STORY_COMPLETE: "The Story, Complete",
     DISCOVER_WORKSPACE: "My UNBIFY",
   };
@@ -112,6 +116,7 @@
   }
 
   const CHAPTER_ORDER = ["SELF_DISCOVERY", "REFLECTION", "ALIGNMENT", "TRANSFORMATION"];
+  const BASE_STATE = s => (s || "").replace("_CLOSING", "");
 
   function updateField(fragments, chapter) {
     if (!fieldEl) return;
@@ -140,7 +145,7 @@
 
   function updateThread(state) {
     if (!threadEl) return;
-    const idx = CHAPTER_ORDER.indexOf(state);
+    const idx = CHAPTER_ORDER.indexOf(BASE_STATE(state));
     if (idx < 0) { threadEl.innerHTML = ""; return; }
     const label = ["01 SELF DISCOVERY", "02 REFLECTION", "03 ALIGNMENT", "04 TRANSFORMATION"][idx];
     threadEl.innerHTML = `<span class="tl">${label}</span><span class="tline">` +
@@ -172,12 +177,54 @@
       }
       return;
     }
+    if (it.type === "chapter_closing") { renderChapterClosing(newSceneFresh(), it); return; }
     if (it.type === "story_close") { renderStoryClose(newSceneFresh(), it); return; }
     if (it.type === "workspace") { renderWorkspace(newSceneFresh(), it); return; }
     render(it);
   }
 
   /* ---------------- rendering ---------------- */
+
+  function renderChapterClosing(scene, it) {
+    stage.classList.add("dx-scroll");
+    scene.classList.add("dx-closingpage");
+    (it.sections || []).forEach(sec => {
+      const block = document.createElement("div");
+      block.className = "dx-close-sec";
+      if (sec.label) {
+        const l = document.createElement("p");
+        l.className = "cs-label";
+        l.textContent = sec.label;
+        block.appendChild(l);
+      }
+      const t = document.createElement("p");
+      t.className = "cs-text";
+      t.textContent = sec.text;
+      block.appendChild(t);
+      scene.appendChild(block);
+    });
+    const btn = document.createElement("button");
+    btn.className = "dx-commit ready dx-close-cta";
+    btn.textContent = it.cta || "Continue →";
+    scene.appendChild(btn);
+    /* scroll reveals; content never disappears; only the click advances */
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("in"); });
+    }, { threshold: 0.35 });
+    scene.querySelectorAll(".dx-close-sec, .dx-close-cta").forEach(el => io.observe(el));
+    btn.addEventListener("click", async () => {
+      io.disconnect();
+      stage.classList.remove("dx-scroll");
+      const data = await api(`/sessions/${sessionId}/advance`, { to: it.next });
+      const opener = STATE_TO_OPENER[it.next];
+      if (opener) {
+        close();
+        window.dispatchEvent(new CustomEvent("discover:chapter", { detail: { next: opener } }));
+      } else {
+        handlePayload(data);
+      }
+    }, { once: true });
+  }
 
   function renderClosing(scene, lines, done) {
     scene.classList.add("dx-final");
@@ -692,13 +739,20 @@
     const wrap = document.createElement("div");
     wrap.className = "dx-reveal-lines";
     scene.appendChild(wrap);
+    const timers = [];
     it.lines.forEach((line, i) => {
       const p = document.createElement("p");
       p.className = "dx-reveal-line";
       p.textContent = line;
       wrap.appendChild(p);
-      setTimeout(() => p.classList.add("in"), 600 + i * 1250);
+      timers.push(setTimeout(() => p.classList.add("in"), 600 + i * 1250));
     });
+    /* tap anywhere to reveal everything at once — never gate reading on animation */
+    scene.addEventListener("click", () => {
+      timers.forEach(clearTimeout);
+      wrap.querySelectorAll(".dx-reveal-line").forEach(p => p.classList.add("in"));
+      calib.classList.add("in");
+    }, { once: true });
     const calib = document.createElement("div");
     calib.className = "dx-calib";
     it.calibration.forEach(c => {
@@ -818,21 +872,11 @@
     scene.appendChild(next);
     setTimeout(() => { next.style.opacity = "1"; }, mapDelay + 900);
 
-    const closing = document.createElement("div");
-    closing.className = "dx-reveal-lines dx-story-end";
-    (it.closing || []).forEach((line, i) => {
-      const p = document.createElement("p");
-      p.className = "dx-reveal-line dx-closing-line";
-      p.textContent = line;
-      closing.appendChild(p);
-      setTimeout(() => p.classList.add("in"), mapDelay + 1600 + i * 1350);
-    });
-    scene.appendChild(closing);
     const done = document.createElement("button");
     done.className = "dx-commit dx-continue";
-    done.textContent = "Enter your workspace";
+    done.textContent = "Continue →";
     scene.appendChild(done);
-    setTimeout(() => done.classList.add("ready"), mapDelay + 1600 + (it.closing || []).length * 1350 + 600);
+    setTimeout(() => done.classList.add("ready"), mapDelay + 1200);
     done.addEventListener("click", () => respond(it.id, { done: true }));
   }
 

@@ -112,7 +112,8 @@ def build_context(session: DiscoverSession) -> dict:
     max_len = CHAPTER_MAX_INTERACTIONS.get(chapter, 9)
     min_evid = CHAPTER_MIN_EVIDENCE.get(chapter, 6)
     unexplored_contradiction = any(not c.get("explored") for c in (session.contradictions or []))
-    practical_keys = [k for k in (session.practical_context or {}) if k not in ("notes", "resonant_life", "professional", "_lives")]
+    practical_keys = [k for k in (session.practical_context or {})
+                      if not k.startswith("_") and k not in ("notes", "resonant_life", "professional")]
     # fatigue is a UX signal, never psychology: long latencies + skips + help requests
     engagement = session.engagement or {}
     recent_lat = (engagement.get("recent_latency") or [])[-3:]

@@ -33,7 +33,7 @@ def test_full_journey(client):
         seen_states.add(data["state"])
         if it["type"] == "workspace":
             break
-        if it["type"] == "chapter_transition":
+        if it["type"] in ("chapter_transition", "chapter_closing"):
             data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": it["next"]}).json()
             continue
         if it["type"] == "story_close":
@@ -44,7 +44,8 @@ def test_full_journey(client):
                            json={"interactionId": it["id"], "response": resp, "elapsedMs": 3000}).json()
 
     assert data["interaction"]["type"] == "workspace"
-    for state in ["SELF_DISCOVERY", "REFLECTION", "ALIGNMENT", "TRANSFORMATION",
+    for state in ["SELF_DISCOVERY", "SELF_DISCOVERY_CLOSING", "REFLECTION", "REFLECTION_CLOSING",
+                  "ALIGNMENT", "ALIGNMENT_CLOSING", "TRANSFORMATION", "TRANSFORMATION_CLOSING",
                   "STORY_COMPLETE", "DISCOVER_WORKSPACE"]:
         assert state in seen_states, f"never reached {state}"
 
