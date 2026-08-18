@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UNBIFY Discover — A Journey Within</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Jost:wght@300;400;500&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ambient atmosphere -->
+<div class="haze haze-a" data-plx="1.5"></div>
+<div class="haze haze-b" data-plx="1"></div>
+
+<!-- bottom landscape -->
+<div class="landscape" data-plx="3.5">
+  <svg viewBox="0 0 1920 560" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <defs>
+      <linearGradient id="lsSky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#f6ecda" stop-opacity="0"/>
+        <stop offset=".55" stop-color="#f0dfc2" stop-opacity=".55"/>
+        <stop offset="1" stop-color="#e9d3ae" stop-opacity=".8"/>
+      </linearGradient>
+      <radialGradient id="lsSun" cx=".62" cy=".78" r=".45">
+        <stop offset="0" stop-color="#f7d9a4" stop-opacity=".95"/>
+        <stop offset=".35" stop-color="#f3cf96" stop-opacity=".5"/>
+        <stop offset="1" stop-color="#f3cf96" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="lsM1" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#c8ab84"/><stop offset="1" stop-color="#bfa079"/>
+      </linearGradient>
+      <linearGradient id="lsM2" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#b3946c"/><stop offset="1" stop-color="#a8875f"/>
+      </linearGradient>
+      <linearGradient id="lsWater" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#e8d2ac" stop-opacity=".9"/>
+        <stop offset="1" stop-color="#dfc499" stop-opacity=".95"/>
+      </linearGradient>
+    </defs>
+    <rect width="1920" height="560" fill="url(#lsSky)"/>
+    <ellipse cx="1190" cy="438" rx="560" ry="240" fill="url(#lsSun)"/>
+    <path d="M0 336 Q 100 282 210 326 Q 300 280 400 330 Q 500 300 640 350 L 640 360 L 0 360 Z" fill="url(#lsM1)" opacity=".3"/>
+    <path d="M1250 354 Q 1380 296 1500 340 Q 1620 288 1760 336 Q 1840 316 1920 342 L 1920 364 L 1250 364 Z" fill="url(#lsM1)" opacity=".26"/>
+    <path d="M0 378 Q 110 332 230 372 Q 340 328 460 376 Q 580 348 700 386 Q 800 366 900 390 L 900 396 L 0 396 Z" fill="url(#lsM2)" opacity=".32"/>
+    <path d="M1100 390 Q 1230 342 1360 380 Q 1490 336 1630 382 Q 1760 354 1920 388 L 1920 398 L 1100 398 Z" fill="url(#lsM2)" opacity=".3"/>
+    <rect y="384" width="1920" height="176" fill="url(#lsWater)" opacity=".8"/>
+    <ellipse cx="1190" cy="392" rx="330" ry="10" fill="#f9e3b4" opacity=".7"/>
+    <ellipse cx="1190" cy="410" rx="220" ry="5" fill="#f7dda8" opacity=".5"/>
+    <ellipse cx="1190" cy="428" rx="140" ry="3.4" fill="#f5d89f" opacity=".4"/>
+    <ellipse cx="620" cy="420" rx="260" ry="3" fill="#efd5a6" opacity=".28"/>
+  </svg>
+</div>
+
+<!-- header -->
+<header class="site-header">
+  <a class="brand" href="#" aria-label="Unbify home">
+    <img class="brand-img" src="assets/unbify-logo.png" alt="unbify">
+  </a>
+  <button class="menu-btn" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+</header>
+
+<!-- chapters -->
+<nav class="chapters" aria-label="Chapters" data-plx="1.5">
+  <p class="chapters-label">Chapters</p>
+  <ol>
+    <li class="active"><span class="num">01</span><span class="name">Awakening</span></li>
+    <li><span class="num">02</span><span class="name">Reflection</span></li>
+    <li><span class="num">03</span><span class="name">Alignment</span></li>
+    <li><span class="num">04</span><span class="name">Becoming</span></li>
+  </ol>
+</nav>
+<div class="connector" aria-hidden="true"><span class="connector-joint"></span><span class="connector-line"></span></div>
+
+<!-- quote -->
+<aside class="quote" data-plx="1.5">
+  <span class="quote-mark">&ldquo;</span>
+  <blockquote>The privilege of a lifetime is to become who you truly are.</blockquote>
+  <cite>&mdash;&ensp;Carl Jung</cite>
+</aside>
+
+<!-- ORBIT SYSTEM -->
+<div class="orbit-anchor" data-plx="-4">
+<div class="orbit-system" id="orbitSystem" aria-hidden="true">
+  <svg class="rings" viewBox="0 0 1200 1200">
+    <defs>
+      <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#dcc094"/><stop offset="1" stop-color="#caa76e"/>
+      </linearGradient>
+    </defs>
+    <!-- group A · outer · clockwise 84s -->
+    <g class="ring-g spin-cw" style="--dur:84s">
+      <circle class="draw" cx="600" cy="600" r="575" pathLength="100" stroke="#d9c096" stroke-opacity=".55" stroke-width="1" fill="none" style="--d:.8s"/>
+      <circle class="draw arc-hi" cx="600" cy="600" r="575" pathLength="100" stroke="#dfae6e" stroke-opacity=".85" stroke-width="1.6" fill="none" stroke-dasharray="9 91" stroke-dashoffset="-18" style="--d:1.6s"/>
+      <circle class="fade dotted" cx="600" cy="600" r="543" stroke="#cfb488" stroke-opacity=".55" stroke-width="2.4" fill="none" stroke-dasharray="0.2 17" stroke-linecap="round" style="--d:1.15s"/>
+      <circle class="fade" cx="600" cy="600" r="575" stroke="#e0955a" stroke-width="6.5" fill="none" pathLength="360" stroke-dasharray="0.001 359.999" stroke-dashoffset="-247" stroke-linecap="round" stroke-opacity=".9" style="--d:1.9s"/>
+    </g>
+    <!-- group B · counter-clockwise 64s -->
+    <g class="ring-g spin-ccw" style="--dur:64s">
+      <circle class="draw" cx="600" cy="600" r="506" pathLength="100" stroke="#d7bd92" stroke-opacity=".45" stroke-width="1" fill="none" style="--d:1s"/>
+      <circle class="fade beads" cx="600" cy="600" r="506" stroke="#c9a76e" stroke-opacity=".8" stroke-width="3.4" fill="none" pathLength="360" stroke-dasharray="0.001 63" stroke-linecap="round" style="--d:1.7s"/>
+      <circle class="fade" cx="600" cy="600" r="468" stroke="#d5ba8e" stroke-opacity=".5" stroke-width="1" fill="none" pathLength="360" stroke-dasharray="74 26 118 38 62 42" style="--d:1.3s"/>
+    </g>
+    <!-- group C · clockwise 46s -->
+    <g class="ring-g spin-cw" style="--dur:46s">
+      <circle class="fade dotted" cx="600" cy="600" r="424" stroke="#cdb083" stroke-opacity=".55" stroke-width="1.9" fill="none" stroke-dasharray="0.2 12.5" stroke-linecap="round" style="--d:1.45s"/>
+      <circle class="draw" cx="600" cy="600" r="392" pathLength="100" stroke="#d8bf94" stroke-opacity=".4" stroke-width="1" fill="none" style="--d:1.2s"/>
+    </g>
+    <!-- group D · ultra slow counter-clockwise -->
+    <g class="ring-g spin-ccw ring-inner" style="--dur:120s">
+      <circle class="draw" cx="600" cy="600" r="349" pathLength="100" stroke="#dbc59c" stroke-opacity=".38" stroke-width="1" fill="none" style="--d:1.35s"/>
+      <circle class="fade" cx="600" cy="600" r="312" stroke="#d6bc90" stroke-opacity=".42" stroke-width="1" fill="none" pathLength="360" stroke-dasharray="212 148" stroke-dashoffset="40" style="--d:1.55s"/>
+    </g>
+    <!-- innermost frame ring, static -->
+    <circle class="draw" cx="600" cy="600" r="282" pathLength="100" stroke="#dcc79f" stroke-opacity=".35" stroke-width="1" fill="none" style="--d:1.7s"/>
+  </svg>
+
+  <!-- travelling image nodes -->
+  <div class="node-carrier" style="--a0:-95deg; --rf:.958; --dur:84s">
+    <div class="spin cw"><div class="node-pos">
+      <div class="upright ccw"><div class="unrot">
+        <figure class="img-node n-lg intro-node" style="--d:1.55s">
+          <svg viewBox="0 0 100 100"><defs>
+            <linearGradient id="im1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e4d3b4"/><stop offset=".62" stop-color="#c8ad85"/><stop offset="1" stop-color="#9c7f5c"/></linearGradient>
+          </defs>
+          <rect width="100" height="100" fill="url(#im1)"/>
+          <ellipse cx="50" cy="30" rx="26" ry="18" fill="#f2e5c8" opacity=".55"/>
+          <path d="M0 74 Q 25 62 50 70 T 100 68 L100 100 L0 100 Z" fill="#8a6f4e" opacity=".8"/>
+          <path d="M46 72 C46 62 44 52 47 44 C48 41 52 41 53 44 C56 52 54 62 54 72 Z" fill="#4d3b28"/>
+          <circle cx="50" cy="39" r="4.4" fill="#4d3b28"/>
+          </svg>
+          <figcaption>Awakening</figcaption>
+        </figure>
+      </div></div>
+    </div></div>
+  </div>
+
+  <div class="node-carrier" style="--a0:-14deg; --rf:.843; --dur:64s">
+    <div class="spin ccw"><div class="node-pos">
+      <div class="upright cw"><div class="unrot">
+        <figure class="img-node n-lg intro-node" style="--d:1.7s">
+          <svg viewBox="0 0 100 100"><defs>
+            <linearGradient id="im2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ecdcbc"/><stop offset="1" stop-color="#b09068"/></linearGradient>
+          </defs>
+          <rect width="100" height="100" fill="url(#im2)"/>
+          <circle cx="50" cy="46" r="15" fill="#f6e9c9" opacity=".8"/>
+          <path d="M0 66 L22 44 L38 60 L56 38 L74 58 L88 46 L100 58 L100 100 L0 100 Z" fill="#8f7350" opacity=".85"/>
+          <path d="M0 80 L28 62 L52 78 L76 60 L100 74 L100 100 L0 100 Z" fill="#6e563b" opacity=".8"/>
+          </svg>
+          <figcaption>Horizon</figcaption>
+        </figure>
+      </div></div>
+    </div></div>
+  </div>
+
+  <div class="node-carrier" style="--a0:207deg; --rf:.905; --dur:84s">
+    <div class="spin cw"><div class="node-pos">
+      <div class="upright ccw"><div class="unrot">
+        <figure class="img-node intro-node" style="--d:1.85s">
+          <svg viewBox="0 0 100 100"><defs>
+            <linearGradient id="im3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9d9ba"/><stop offset="1" stop-color="#a8865e"/></linearGradient>
+          </defs>
+          <rect width="100" height="100" fill="url(#im3)"/>
+          <circle cx="64" cy="34" r="12" fill="#f4e6c6" opacity=".7"/>
+          <path d="M0 78 Q 30 66 60 74 T 100 72 L100 100 L0 100 Z" fill="#7d6244" opacity=".85"/>
+          <path d="M40 76 C40 66 38.5 58 41 50 C42 47.4 45 47.4 46 50 C48.5 58 47 66 47 76 Z" fill="#46351f"/>
+          </svg>
+          <figcaption>Solitude</figcaption>
+        </figure>
+      </div></div>
+    </div></div>
+  </div>
+
+  <div class="node-carrier" style="--a0:118deg; --rf:.78; --dur:64s">
+    <div class="spin ccw"><div class="node-pos">
+      <div class="upright cw"><div class="unrot">
+        <figure class="img-node intro-node" style="--d:2s">
+          <svg viewBox="0 0 100 100"><defs>
+            <linearGradient id="im4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e7d6b5"/><stop offset="1" stop-color="#a1815a"/></linearGradient>
+          </defs>
+          <rect width="100" height="100" fill="url(#im4)"/>
+          <circle cx="50" cy="34" r="17" fill="#f6ead0" opacity=".6"/>
+          <rect y="70" width="100" height="30" fill="#846846" opacity=".8"/>
+          <path d="M50 46 C 46 46 43.6 49 43.6 52.6 C 43.6 55 45 57 47 58 L 40 70 L 60 70 L 53 58 C 55 57 56.4 55 56.4 52.6 C 56.4 49 54 46 50 46 Z" fill="#4a3826"/>
+          <ellipse cx="50" cy="71" rx="14" ry="2.6" fill="#3f2f20" opacity=".55"/>
+          </svg>
+          <figcaption>Stillness</figcaption>
+        </figure>
+      </div></div>
+    </div></div>
+  </div>
+
+  <!-- active chapter node (static) -->
+  <span class="active-node intro-node" id="activeNode" style="--d:1.6s"></span>
+
+  <!-- particles -->
+  <div class="particles"></div>
+</div>
+</div>
+
+<!-- HERO -->
+<main class="hero" data-plx="-1.5">
+  <div class="hero-inner">
+    <svg class="lotus intro-el" style="--d:1.8s" viewBox="0 0 64 44" aria-hidden="true" fill="none" stroke="#c9a76e" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M32 6 C 27 14 27 24 32 31 C 37 24 37 14 32 6 Z"/>
+      <path d="M18 12 C 18 22 23 29 32 31 C 30 22 25 15 18 12 Z"/>
+      <path d="M46 12 C 46 22 41 29 32 31 C 34 22 39 15 46 12 Z"/>
+      <path d="M8 22 C 12 30 20 34 32 31 C 26 25 17 22 8 22 Z"/>
+      <path d="M56 22 C 52 30 44 34 32 31 C 38 25 47 22 56 22 Z"/>
+    </svg>
+    <p class="kicker intro-el" style="--d:1.95s">A&ensp;Journey&ensp;Within</p>
+    <h1 class="headline"><span class="headline-mask intro-headline" style="--d:2.25s">UNBIFY Discover</span></h1>
+    <p class="support intro-el" style="--d:2.85s">Discover who you are. Unlock your purpose.<br>Find the opportunities meant for <em>you.</em></p>
+
+    <div class="cta-wrap intro-cta" style="--d:3.25s">
+      <span class="pulse-ring pr1"></span>
+      <span class="pulse-ring pr2"></span>
+      <span class="halo"></span>
+      <button class="cta" id="ctaBtn">
+        <span class="cta-text">Begin&ensp;Your<br>Journey</span>
+        <svg class="cta-arrow" viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M0 6 H31 M26 1.5 L31.5 6 L26 10.5"/></svg>
+      </button>
+    </div>
+  </div>
+</main>
+
+<!-- bottom chrome -->
+<div class="pager intro-el" style="--d:3.6s" aria-hidden="true">
+  <span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+</div>
+<button class="scroll-hint intro-el" style="--d:3.7s" aria-label="Scroll">
+  <svg viewBox="0 0 16 9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M1.5 1.5 L8 7.5 L14.5 1.5"/></svg>
+</button>
+
+<!-- transition wash -->
+<div class="wash" aria-hidden="true"></div>
+
+<!-- CHAPTER I — Self Discovery -->
+<section class="chapter" id="chapter" aria-hidden="true">
+
+  <!-- EXACT-ARTWORK MODE — the art-directed frame (assets/ch-1-clean@2x.jpg) is the visual
+       foundation; the coded recreation below is only a fallback if the image is missing. -->
+  <div class="ch-art" id="chArt" aria-hidden="true">
+    <img id="chArtImg" src="assets/ch-1-clean@2x.jpg" alt="Chapter I — Self Discovery">
+    <div class="art-ambient"></div>
+    <div class="art-light"></div>
+    <div class="art-grain"></div>
+    <div class="art-frame" id="artFrame">
+      <button class="hs hs-menu" aria-label="Menu"></button>
+      <button class="hs hs-map" aria-label="Journey map"></button>
+      <button class="hs hs-title" id="hsTitle" aria-label="Enter Self Discovery"></button>
+    </div>
+    <div class="art-focus"></div>
+  </div>
+
+  <!-- faint background landscape extensions -->
+  <svg class="ch-bg-right" viewBox="0 0 600 500" aria-hidden="true">
+    <path d="M0 400 Q 150 380 300 396 Q 450 378 600 394 L 600 500 L 0 500 Z" fill="#b08a58" opacity=".35"/>
+    <ellipse cx="300" cy="430" rx="300" ry="40" fill="#d8ba8a" opacity=".3"/>
+    <g fill="#8a6a42" opacity=".5">
+      <path d="M80 402 L 92 340 L 104 402 Z"/><path d="M86 356 L 92 330 L 98 356 Z"/>
+      <path d="M150 400 L 160 352 L 170 400 Z"/>
+      <path d="M480 398 L 494 326 L 508 398 Z"/><path d="M487 348 L 494 318 L 501 348 Z"/>
+      <path d="M545 400 L 553 360 L 561 400 Z"/>
+      <rect x="90" y="396" width="4" height="14"/><rect x="492" y="392" width="4" height="16"/>
+    </g>
+  </svg>
+  <svg class="ch-bg-left" viewBox="0 0 500 300" aria-hidden="true">
+    <path d="M0 210 Q 120 150 260 196 Q 390 150 500 190 L 500 300 L 0 300 Z" fill="#a9855a" opacity=".5"/>
+    <path d="M0 250 Q 140 208 300 244 Q 420 216 500 240 L 500 300 L 0 300 Z" fill="#93714a" opacity=".4"/>
+  </svg>
+
+  <!-- ambient haze -->
+  <div class="ch-haze"></div>
+
+  <!-- brand -->
+  <div class="ch-brand">
+    <img class="brand-img" src="assets/unbify-logo.png" alt="unbify">
+  </div>
+
+  <!-- compact left navigation -->
+  <nav class="ch-nav" aria-label="Chapter navigation">
+    <button class="ch-nav-btn light" aria-label="Menu">
+      <svg viewBox="0 0 18 14" stroke="#b98a3e" stroke-width="1.8" stroke-linecap="round"><path d="M1 1.5 H17 M1 7 H17 M1 12.5 H17"/></svg>
+    </button>
+    <button class="ch-nav-btn dark" aria-label="Journey map">
+      <svg viewBox="0 0 20 18" fill="none" stroke="#cf9e4a" stroke-width="1.5" stroke-linejoin="round">
+        <path d="M1 4 L7 1.5 L13 4 L19 1.5 V14 L13 16.5 L7 14 L1 16.5 Z M7 1.5 V14 M13 4 V16.5"/>
+      </svg>
+    </button>
+  </nav>
+
+  <!-- birds -->
+  <svg class="ch-birds" viewBox="0 0 120 50" aria-hidden="true" fill="none" stroke="#8d6f4c" stroke-width="1.6" stroke-linecap="round">
+    <path d="M8 24 Q 13 18 18 23 Q 23 18 28 24"/>
+    <path d="M48 12 Q 52 7 56 11 Q 60 7 64 12"/>
+    <path d="M86 32 Q 89 28 92 31 Q 95 28 98 32"/>
+  </svg>
+
+  <!-- PORTRAIT · double exposure -->
+  <div class="ch-portrait" id="chPortrait">
+    <svg viewBox="0 0 880 1000" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+      <defs>
+        <filter id="softF" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="1.4"/></filter>
+        <radialGradient id="pFace" cx=".46" cy=".4" r=".72">
+          <stop offset="0" stop-color="#e6cfae"/><stop offset=".68" stop-color="#d3b68e"/><stop offset="1" stop-color="#bd9c72"/>
+        </radialGradient>
+        <linearGradient id="pTurban" x1="0" y1="0" x2=".3" y2="1">
+          <stop offset="0" stop-color="#f6ecd6"/><stop offset=".6" stop-color="#e9d8b4"/><stop offset="1" stop-color="#d3ba8c"/>
+        </linearGradient>
+        <linearGradient id="pRobe" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#93744e"/><stop offset=".5" stop-color="#84663f"/>
+          <stop offset="1" stop-color="#9a7c50"/>
+        </linearGradient>
+        <linearGradient id="pSkyIn" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f2e3c2" stop-opacity=".9"/><stop offset="1" stop-color="#f2e3c2" stop-opacity="0"/>
+        </linearGradient>
+        <linearGradient id="landStrength" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#fff" stop-opacity="0"/>
+          <stop offset=".18" stop-color="#fff" stop-opacity=".28"/>
+          <stop offset=".45" stop-color="#fff" stop-opacity=".68"/>
+          <stop offset="1" stop-color="#fff" stop-opacity=".95"/>
+        </linearGradient>
+        <mask id="landMask"><rect x="0" y="400" width="880" height="600" fill="url(#landStrength)"/></mask>
+        <radialGradient id="edgeG" cx=".47" cy=".52" r=".62">
+          <stop offset="0" stop-color="#fff"/><stop offset=".78" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+        </radialGradient>
+        <mask id="edgeFade"><rect width="880" height="1000" fill="url(#edgeG)"/></mask>
+        <clipPath id="robeClip">
+          <path d="M96 1000 C 94 820 122 660 182 576 C 226 512 296 478 372 468
+            C 392 464 400 456 404 444 L 456 444 C 460 456 468 464 488 468
+            C 564 478 634 512 678 576 C 738 660 766 820 764 1000 Z"/>
+        </clipPath>
+      </defs>
+
+      <g mask="url(#edgeFade)">
+        <!-- turban -->
+        <g class="p-static">
+          <path d="M298 300 C 262 258 258 170 300 110 C 340 54 402 30 448 34 C 520 40 572 92 588 158 C 602 218 588 276 556 306 C 540 322 520 326 506 318 C 486 348 396 350 360 322 C 340 332 314 322 298 300 Z" fill="url(#pTurban)"/>
+          <path d="M300 132 C 340 96 420 74 480 92" stroke="#d9c096" stroke-width="5" fill="none" opacity=".55" stroke-linecap="round"/>
+          <path d="M282 196 C 320 152 420 122 512 140" stroke="#d4ba8e" stroke-width="5" fill="none" opacity=".5" stroke-linecap="round"/>
+          <path d="M276 258 C 330 216 470 190 560 214" stroke="#cfb486" stroke-width="5" fill="none" opacity=".45" stroke-linecap="round"/>
+          <path d="M330 90 C 380 60 470 56 520 84" stroke="#efe2c4" stroke-width="6" fill="none" opacity=".6" stroke-linecap="round"/>
+          <!-- side wraps over ears -->
+          <path d="M304 292 C 296 330 304 362 322 378 C 316 336 318 312 326 292 Z" fill="#dcc59a"/>
+          <path d="M566 296 C 576 332 570 362 554 378 C 558 338 556 314 550 294 Z" fill="#d5bd90"/>
+        </g>
+
+        <!-- face -->
+        <g class="p-static">
+          <ellipse cx="436" cy="330" rx="98" ry="118" fill="url(#pFace)"/>
+          <!-- side shading -->
+          <path d="M510 258 C 534 300 534 372 506 414 C 524 366 524 300 510 258 Z" fill="#a98a64" opacity=".5"/>
+          <path d="M356 268 C 340 306 340 368 362 408 C 348 364 348 302 356 268 Z" fill="#c3a47e" opacity=".5"/>
+          <g filter="url(#softF)" opacity=".88">
+          <!-- brows -->
+          <path d="M382 302 Q 404 292 426 301" stroke="#6d5338" stroke-width="5" fill="none" stroke-linecap="round" opacity=".85"/>
+          <path d="M448 301 Q 470 292 492 302" stroke="#6d5338" stroke-width="5" fill="none" stroke-linecap="round" opacity=".85"/>
+          <!-- eyes -->
+          <path d="M386 322 Q 404 312 422 322 Q 404 331 386 322 Z" fill="#f2e6cc"/>
+          <circle cx="404" cy="321" r="5.6" fill="#41301e"/>
+          <circle cx="406" cy="319" r="1.8" fill="#f6ecd4" opacity=".9"/>
+          <path d="M386 322 Q 404 311 422 322" stroke="#5d442c" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <path d="M452 322 Q 470 312 488 322 Q 470 331 452 322 Z" fill="#f2e6cc"/>
+          <circle cx="470" cy="321" r="5.6" fill="#41301e"/>
+          <circle cx="472" cy="319" r="1.8" fill="#f6ecd4" opacity=".9"/>
+          <path d="M452 322 Q 470 311 488 322" stroke="#5d442c" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+          <!-- nose -->
+          <path d="M434 322 C 431 344 428 358 424 368 C 430 375 444 375 450 368 C 446 358 443 344 441 322 Z" fill="#c7a67e" opacity=".55"/>
+          <path d="M424 368 Q 437 378 450 368" stroke="#a3815c" stroke-width="2.6" fill="none" stroke-linecap="round" opacity=".7"/>
+          <!-- lips -->
+          <path d="M408 398 Q 437 390 466 398 Q 437 412 408 398 Z" fill="#a67a58" opacity=".8"/>
+          <path d="M408 398 Q 437 404 466 398" stroke="#8a6244" stroke-width="2" fill="none" opacity=".6"/>
+          <!-- chin / cheek softness -->
+          <ellipse cx="437" cy="428" rx="30" ry="12" fill="#c2a077" opacity=".35"/>
+          </g>
+        </g>
+
+        <!-- neck & collar -->
+        <g class="p-static">
+          <path d="M398 428 C 400 456 406 472 414 480 L 462 480 C 470 472 476 456 478 428 C 462 446 414 446 398 428 Z" fill="#c9a87f"/>
+          <path d="M388 470 L 438 522 L 488 470 C 470 486 406 486 388 470 Z" fill="#f6eed8"/>
+        </g>
+
+        <!-- robe with double exposure -->
+        <g clip-path="url(#robeClip)">
+          <rect x="80" y="430" width="720" height="580" fill="url(#pRobe)"/>
+          <path d="M240 620 C 320 560 560 560 640 620 L 640 660 C 560 606 320 606 240 660 Z" fill="#a8875c" opacity=".35"/>
+          <g class="innerLand" mask="url(#landMask)">
+            <rect x="60" y="400" width="780" height="240" fill="url(#pSkyIn)"/>
+            <!-- distant hills -->
+            <path d="M100 640 Q 240 560 400 620 Q 560 552 780 628 L 780 1000 L 100 1000 Z" fill="#b39064" opacity=".7"/>
+            <!-- pavilion hill (right chest) -->
+            <path d="M520 640 Q 600 574 700 630 L 700 720 L 520 720 Z" fill="#a08054" opacity=".8"/>
+            <g fill="#6b5233" opacity=".9">
+              <path d="M598 588 L 626 588 L 623 600 L 601 600 Z"/>
+              <path d="M596 588 Q 612 572 628 588 Z"/>
+              <rect x="602" y="600" width="3" height="14"/><rect x="619" y="600" width="3" height="14"/>
+              <rect x="598" y="613" width="28" height="3"/>
+            </g>
+            <!-- mid ground -->
+            
+            <path d="M60 720 Q 220 640 420 700 Q 620 636 840 712 L 840 1000 L 60 1000 Z" fill="#94734a" opacity=".75"/>
+            <!-- path -->
+            <path d="M330 1000 C 344 930 320 872 346 820 C 366 780 402 762 414 726 L 434 726 C 428 766 396 792 382 830 C 362 884 392 936 380 1000 Z" fill="#e0cba0" opacity=".85"/>
+            <path d="M348 1000 C 356 944 344 894 360 852" stroke="#c9b184" stroke-width="3" fill="none" opacity=".5"/>
+            <!-- trees left of path -->
+            <g fill="#5f4a2e" opacity=".92">
+              <path d="M258 852 L 276 776 L 294 852 Z"/><path d="M264 806 L 276 758 L 288 806 Z"/>
+              <path d="M216 890 L 232 826 L 248 890 Z"/><path d="M221 852 L 232 810 L 243 852 Z"/>
+              <path d="M304 818 L 316 766 L 328 818 Z"/>
+              <rect x="273" y="846" width="6" height="22"/><rect x="229" y="884" width="6" height="20"/><rect x="313" y="812" width="5" height="18"/>
+            </g>
+            <!-- trees right of path -->
+            <g fill="#54402a" opacity=".92">
+              <path d="M470 800 L 486 738 L 502 800 Z"/><path d="M475 764 L 486 722 L 497 764 Z"/>
+              <path d="M530 850 L 548 774 L 566 850 Z"/><path d="M537 806 L 548 756 L 559 806 Z"/>
+              <path d="M600 900 L 622 810 L 644 900 Z"/><path d="M608 852 L 622 792 L 636 852 Z"/>
+              <rect x="483" y="794" width="6" height="22"/><rect x="545" y="844" width="6" height="26"/><rect x="618" y="894" width="8" height="30"/>
+            </g>
+            <!-- bushes -->
+            <ellipse cx="200" cy="930" rx="70" ry="26" fill="#6b5334" opacity=".8"/>
+            <ellipse cx="560" cy="950" rx="90" ry="30" fill="#5d4830" opacity=".85"/>
+            <ellipse cx="430" cy="990" rx="120" ry="30" fill="#52402a" opacity=".85"/>
+            <!-- walking figure -->
+            <g class="walker" fill="#3f2f1e">
+              <circle cx="366" cy="836" r="6.5"/>
+              <path d="M360 844 C 358 862 358 880 361 896 L 371 896 C 374 880 374 862 372 844 Z"/>
+            </g>
+            <!-- haze bands -->
+            <ellipse cx="440" cy="700" rx="360" ry="40" fill="#f4e6c6" opacity=".35"/>
+            <ellipse cx="360" cy="780" rx="300" ry="30" fill="#f2e2c0" opacity=".25"/>
+          </g>
+          <!-- folded arm shadow -->
+          <path d="M200 700 C 300 660 580 660 680 700 C 580 676 300 676 200 700 Z" fill="#5f4626" opacity=".25"/>
+        </g>
+
+        <!-- faint exposure wisp across turban edge -->
+        <path d="M300 250 C 380 236 480 232 580 248" stroke="#b7996e" stroke-width="14" fill="none" opacity=".12" stroke-linecap="round"/>
+        <path d="M292 282 C 380 264 500 260 588 278" stroke="#ab8d62" stroke-width="10" fill="none" opacity=".1" stroke-linecap="round"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- typography column -->
+  <div class="ch-copy">
+    <div class="ch-kickrow">
+      <p class="ch-kicker">Chapter&ensp;I</p>
+      <span class="k-line"></span>
+      <svg class="k-lotus" viewBox="0 0 64 44" fill="none" stroke="#c9a76e" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M32 6 C 27 14 27 24 32 31 C 37 24 37 14 32 6 Z"/>
+        <path d="M18 12 C 18 22 23 29 32 31 C 30 22 25 15 18 12 Z"/>
+        <path d="M46 12 C 46 22 41 29 32 31 C 34 22 39 15 46 12 Z"/>
+        <path d="M8 22 C 12 30 20 34 32 31 C 26 25 17 22 8 22 Z"/>
+        <path d="M56 22 C 52 30 44 34 32 31 C 38 25 47 22 56 22 Z"/>
+      </svg>
+      <span class="k-line"></span>
+    </div>
+
+    <h2 class="ch-title"><span class="ch-title-mask">Self Discovery</span></h2>
+
+    <div class="ch-marker">
+      <span class="m-dot"></span><span class="m-line"></span>
+      <span class="m-square">I</span>
+      <span class="m-line"></span><span class="m-dot"></span>
+    </div>
+
+    <p class="ch-support">Discover who you are.<br>Understand your purpose.</p>
+    <span class="ch-underline"></span>
+  </div>
+
+  <!-- continuation cue -->
+  <button class="ch-cue" id="chCue">
+    <span>Begin&ensp;Self&ensp;Discovery</span>
+    <svg viewBox="0 0 16 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.5 1.5 L8 7.5 L14.5 1.5"/></svg>
+  </button>
+
+  <button class="ch-back" id="chBack">
+    <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M34 6 H3 M8 1.5 L2.5 6 L8 10.5"/></svg>
+    <span>Return</span>
+  </button>
+</section>
+
+
+
+
+<!-- CHAPTER II — Reflection -->
+<section class="chapter2" id="chapter2" aria-hidden="true">
+  <img class="ch2-img" id="ch2Img" src="assets/ch2@2x.jpg" alt="Chapter II — Reflection">
+  <div class="fig-halo"></div>
+  <div class="art-ambient"></div>
+  <div class="art-grain"></div>
+  <div class="ch2-mist"></div>
+
+  <div class="ch-brand">
+    <img class="brand-img" src="assets/unbify-logo.png" alt="unbify">
+  </div>
+  <nav class="ch-nav" aria-label="Chapter navigation">
+    <button class="ch-nav-btn light" aria-label="Menu">
+      <svg viewBox="0 0 18 14" stroke="#b98a3e" stroke-width="1.8" stroke-linecap="round"><path d="M1 1.5 H17 M1 7 H17 M1 12.5 H17"/></svg>
+    </button>
+    <button class="ch-nav-btn dark" aria-label="Journey map">
+      <svg viewBox="0 0 20 18" fill="none" stroke="#cf9e4a" stroke-width="1.5" stroke-linejoin="round">
+        <path d="M1 4 L7 1.5 L13 4 L19 1.5 V14 L13 16.5 L7 14 L1 16.5 Z M7 1.5 V14 M13 4 V16.5"/>
+      </svg>
+    </button>
+  </nav>
+
+  <div class="ch2-copy">
+    <div class="ch-kickrow">
+      <p class="ch-kicker">Chapter&ensp;II</p>
+      <span class="k-line"></span>
+      <svg class="k-lotus" viewBox="0 0 64 44" fill="none" stroke="#c9a76e" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M32 6 C 27 14 27 24 32 31 C 37 24 37 14 32 6 Z"/>
+        <path d="M18 12 C 18 22 23 29 32 31 C 30 22 25 15 18 12 Z"/>
+        <path d="M46 12 C 46 22 41 29 32 31 C 34 22 39 15 46 12 Z"/>
+        <path d="M8 22 C 12 30 20 34 32 31 C 26 25 17 22 8 22 Z"/>
+        <path d="M56 22 C 52 30 44 34 32 31 C 38 25 47 22 56 22 Z"/>
+      </svg>
+      <span class="k-line"></span>
+    </div>
+
+    <h2 class="ch-title"><span class="ch-title-mask">Reflection</span></h2>
+
+    <div class="ch-marker">
+      <span class="m-dot"></span><span class="m-line"></span>
+      <span class="m-square">II</span>
+      <span class="m-line"></span><span class="m-dot"></span>
+    </div>
+
+    <p class="ch-support">Look inward. Notice the patterns.<br>See clearly before choosing what comes next.</p>
+    <span class="ch-underline"></span>
+    <p class="ch2-micro">&ldquo;The quality of your life is shaped by the quality of your attention.&rdquo;</p>
+  </div>
+
+  <button class="ch-cue ch2-cue" id="ch2Cue">
+    <span>Enter&ensp;Reflection</span>
+    <svg viewBox="0 0 16 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.5 1.5 L8 7.5 L14.5 1.5"/></svg>
+  </button>
+
+  <div class="ch2-focus-wash"></div>
+  <button class="ch-back" id="ch2Back">
+    <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M34 6 H3 M8 1.5 L2.5 6 L8 10.5"/></svg>
+    <span>Chapter&ensp;I</span>
+  </button>
+</section>
+
+
+
+<!-- CHAPTER III — Alignment -->
+<section class="chapter3" id="chapter3" aria-hidden="true">
+  <img class="ch3-img" id="ch3Img" src="assets/ch3@2x.jpg" alt="Chapter III — Alignment">
+  <div class="ch3-veil" aria-hidden="true"></div>
+
+  <!-- convergence lines: parts of the self drawing toward one point -->
+  <svg class="ch3-lines" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true" fill="none" stroke-linecap="round">
+    <path class="cl cl1" d="M120 180 C 420 240 640 420 930 690" stroke="#c9a355" stroke-width="1.1"/>
+    <path class="cl cl2" d="M80 560 C 360 580 640 640 930 692" stroke="#c9a355" stroke-width="1.1"/>
+    <path class="cl cl3" d="M300 850 C 540 800 740 740 928 696" stroke="#c9a355" stroke-width="1.1"/>
+  </svg>
+
+  <div class="ch3-glow"></div>
+  <div class="art-ambient"></div>
+  <div class="art-grain"></div>
+  <div class="ch2-mist ch3-mist"></div>
+
+  <div class="ch-brand">
+    <img class="brand-img" src="assets/unbify-logo.png" alt="unbify">
+  </div>
+  <nav class="ch-nav" aria-label="Chapter navigation">
+    <button class="ch-nav-btn light" aria-label="Menu">
+      <svg viewBox="0 0 18 14" stroke="#b98a3e" stroke-width="1.8" stroke-linecap="round"><path d="M1 1.5 H17 M1 7 H17 M1 12.5 H17"/></svg>
+    </button>
+    <button class="ch-nav-btn dark" aria-label="Journey map">
+      <svg viewBox="0 0 20 18" fill="none" stroke="#cf9e4a" stroke-width="1.5" stroke-linejoin="round">
+        <path d="M1 4 L7 1.5 L13 4 L19 1.5 V14 L13 16.5 L7 14 L1 16.5 Z M7 1.5 V14 M13 4 V16.5"/>
+      </svg>
+    </button>
+  </nav>
+
+  <div class="ch2-copy ch3-copy">
+    <div class="ch-kickrow">
+      <p class="ch-kicker">Chapter&ensp;III</p>
+      <span class="k-line"></span>
+      <svg class="k-lotus" viewBox="0 0 64 44" fill="none" stroke="#c9a76e" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M32 6 C 27 14 27 24 32 31 C 37 24 37 14 32 6 Z"/>
+        <path d="M18 12 C 18 22 23 29 32 31 C 30 22 25 15 18 12 Z"/>
+        <path d="M46 12 C 46 22 41 29 32 31 C 34 22 39 15 46 12 Z"/>
+        <path d="M8 22 C 12 30 20 34 32 31 C 26 25 17 22 8 22 Z"/>
+        <path d="M56 22 C 52 30 44 34 32 31 C 38 25 47 22 56 22 Z"/>
+      </svg>
+      <span class="k-line"></span>
+    </div>
+
+    <h2 class="ch-title"><span class="ch-title-mask">Alignment</span></h2>
+
+    <div class="ch-marker">
+      <span class="m-dot"></span><span class="m-line"></span>
+      <span class="m-square">III</span>
+      <span class="m-line"></span><span class="m-dot"></span>
+    </div>
+
+    <p class="ch-support">Bring who you are into harmony with where you&rsquo;re going.<br>Find the path that feels true &mdash; and works in the real world.</p>
+    <span class="ch-underline"></span>
+    <p class="ch2-micro ch3-micro">Move with clarity, not force.</p>
+  </div>
+
+  <button class="ch-cue ch3-cue" id="ch3Cue">
+    <span>Find&ensp;Your&ensp;Alignment</span>
+    <svg viewBox="0 0 16 9" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M1.5 1.5 L8 7.5 L14.5 1.5"/></svg>
+  </button>
+
+  <div class="ch3-focus-wash"></div>
+  <button class="ch-back" id="ch3Back">
+    <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M34 6 H3 M8 1.5 L2.5 6 L8 10.5"/></svg>
+    <span>Chapter&ensp;II</span>
+  </button>
+</section>
+
+
+
+<!-- CHAPTER IV — Transformation -->
+<section class="chapter4" id="chapter4" aria-hidden="true">
+  <img class="ch4-img" id="ch4Img" src="assets/ch4@2x.jpg" alt="Chapter IV — Transformation">
+  <div class="ch4-lightveil" aria-hidden="true"></div>
+
+  <!-- overlay-only light life: sunrise, path light, lotus glows -->
+  <div class="ch4-rect" id="ch4Rect">
+    <span class="ch4-sun"></span>
+    <span class="ch4-pathlight"></span>
+    <span class="ch4-lotus l1"></span>
+    <span class="ch4-lotus l2"></span>
+  </div>
+  <div class="art-ambient"></div>
+  <div class="art-grain"></div>
+
+  <div class="ch-brand">
+    <img class="brand-img" src="assets/unbify-logo.png" alt="unbify">
+  </div>
+  <nav class="ch-nav" aria-label="Chapter navigation">
+    <button class="ch-nav-btn light" aria-label="Menu">
+      <svg viewBox="0 0 18 14" stroke="#b98a3e" stroke-width="1.8" stroke-linecap="round"><path d="M1 1.5 H17 M1 7 H17 M1 12.5 H17"/></svg>
+    </button>
+    <button class="ch-nav-btn dark" aria-label="Journey map">
+      <svg viewBox="0 0 20 18" fill="none" stroke="#cf9e4a" stroke-width="1.5" stroke-linejoin="round">
+        <path d="M1 4 L7 1.5 L13 4 L19 1.5 V14 L13 16.5 L7 14 L1 16.5 Z M7 1.5 V14 M13 4 V16.5"/>
+      </svg>
+    </button>
+  </nav>
+
+  <div class="ch4-copy">
+    <div class="ch-kickrow">
+      <p class="ch-kicker">Chapter&ensp;IV</p>
+      <span class="k-line"></span>
+      <svg class="k-lotus" viewBox="0 0 64 44" fill="none" stroke="#c9a76e" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M32 6 C 27 14 27 24 32 31 C 37 24 37 14 32 6 Z"/>
+        <path d="M18 12 C 18 22 23 29 32 31 C 30 22 25 15 18 12 Z"/>
+        <path d="M46 12 C 46 22 41 29 32 31 C 34 22 39 15 46 12 Z"/>
+        <path d="M8 22 C 12 30 20 34 32 31 C 26 25 17 22 8 22 Z"/>
+        <path d="M56 22 C 52 30 44 34 32 31 C 38 25 47 22 56 22 Z"/>
+      </svg>
+      <span class="k-line"></span>
+    </div>
+
+    <h2 class="ch-title"><span class="ch-title-mask">Transformation</span></h2>
+
+    <div class="ch-marker">
+      <span class="m-dot"></span><span class="m-line"></span>
+      <span class="m-square">IV</span>
+      <span class="m-line"></span><span class="m-dot"></span>
+    </div>
+
+    <p class="ch-support">Turn insight into intention.<br>Step toward the life only you can build.</p>
+    <span class="ch-underline"></span>
+    <p class="ch2-micro ch4-micro">Your next chapter isn&rsquo;t something we predict. It&rsquo;s something you choose.</p>
+
+    <button class="ch4-cue" id="ch4Cue">
+      <span>Step&ensp;Forward</span>
+      <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M0 6 H31 M26 1.5 L31.5 6 L26 10.5"/></svg>
+    </button>
+  </div>
+
+  <div class="ch4-focus-wash"></div>
+  <button class="ch-back" id="ch4Back">
+    <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M34 6 H3 M8 1.5 L2.5 6 L8 10.5"/></svg>
+    <span>Chapter&ensp;III</span>
+  </button>
+</section>
+
+<!-- Transformation — Scene 01 (destination placeholder) -->
+<div class="scene01 scene04" id="scene04" aria-hidden="true">
+  <p class="s1-kicker">Transformation&ensp;&mdash;&ensp;Scene&ensp;01</p>
+  <p class="s1-note">Where insight becomes intention.</p>
+  <button class="s1-back" id="s4Back">
+    <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M34 6 H3 M8 1.5 L2.5 6 L8 10.5"/></svg>
+    <span>Back&ensp;to&ensp;chapter</span>
+  </button>
+</div>
+
+<!-- MENU OVERLAY -->
+<div class="ov ov-menu" id="ovMenu" aria-hidden="true">
+  <button class="ov-close" data-close aria-label="Close menu">
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 2 L16 16 M16 2 L2 16"/></svg>
+  </button>
+  <div class="ov-menu-inner">
+    <p class="ov-kicker">Unbify&ensp;Discover</p>
+    <nav class="ov-items">
+      <button class="ov-item" data-chapter="1" data-go="chapter"><span class="ov-num">01</span><span class="ov-name">Self Discovery</span></button>
+      <button class="ov-item" data-chapter="2" data-go="chapter2"><span class="ov-num">02</span><span class="ov-name">Reflection</span></button>
+      <button class="ov-item" data-chapter="3" data-go="chapter3"><span class="ov-num">03</span><span class="ov-name">Alignment</span></button>
+      <button class="ov-item" data-chapter="4" data-go="chapter4"><span class="ov-num">04</span><span class="ov-name">Transformation</span></button>
+    </nav>
+    <span class="ov-rule"></span>
+    <button class="ov-home" data-go="intro">Return&ensp;to&ensp;the&ensp;Beginning</button>
+  </div>
+</div>
+
+<!-- JOURNEY MAP OVERLAY -->
+<div class="ov ov-map" id="ovMap" aria-hidden="true">
+  <button class="ov-close" data-close aria-label="Close map">
+    <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 2 L16 16 M16 2 L2 16"/></svg>
+  </button>
+  <div class="ov-map-inner">
+    <p class="ov-kicker">Your&ensp;Journey</p>
+    <h3 class="ov-map-title">The Path of Discovery</h3>
+    <div class="jmap">
+      <svg class="jmap-path" viewBox="0 0 900 120" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M20 78 C 180 30 320 96 450 62 C 580 28 720 88 880 44" fill="none" stroke="#c9a76e" stroke-width="1.4" stroke-dasharray="1 7" stroke-linecap="round"/>
+      </svg>
+      <button class="jnode done" style="--x:2%; --y:62%" data-go="chapter">
+        <span class="jdot"></span>
+        <span class="jlabel"><em>Chapter&ensp;I</em>Self Discovery</span>
+      </button>
+      <button class="jnode done" style="--x:48%; --y:48%" data-go="chapter2">
+        <span class="jdot"></span>
+        <span class="jlabel"><em>Chapter&ensp;II</em>Reflection</span>
+      </button>
+      <button class="jnode done" style="--x:74%; --y:66%" data-go="chapter3">
+        <span class="jdot"></span>
+        <span class="jlabel"><em>Chapter&ensp;III</em>Alignment</span>
+      </button>
+      <button class="jnode next" style="--x:96%; --y:34%" data-go="chapter4">
+        <span class="jdot"></span>
+        <span class="jlabel"><em>Chapter&ensp;IV</em>Transformation</span>
+      </button>
+    </div>
+    <p class="ov-map-note">Each chapter unlocks as your journey deepens.</p>
+  </div>
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>
