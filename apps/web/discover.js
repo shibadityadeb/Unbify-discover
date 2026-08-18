@@ -5,12 +5,17 @@
 (function () {
   "use strict";
 
-  const API = "/api/discover";
+  const API = "/v1/discover";
   const CHAPTER_LABELS = {
-    self_discovery: "Chapter I · Self Discovery",
-    reflection: "Chapter II · Reflection",
-    alignment: "Chapter III · Alignment",
-    transformation: "Chapter IV · Transformation",
+    SELF_DISCOVERY: "Chapter I · Self Discovery",
+    REFLECTION: "Chapter II · Reflection",
+    ALIGNMENT: "Chapter III · Alignment",
+    TRANSFORMATION: "Chapter IV · Transformation",
+    STORY_COMPLETE: "The Story, Complete",
+    OPPORTUNITY_MAP: "Your Opportunity Map",
+  };
+  const STATE_TO_OPENER = {
+    REFLECTION: "reflection", ALIGNMENT: "alignment", TRANSFORMATION: "transformation",
   };
 
   let root, stage, chapterEl, progressEl;
@@ -35,26 +40,37 @@
     progressEl = root.querySelector(".dx-progress");
   }
 
-  async function api(path, body) {
+  async function api(path, body, method) {
     const res = await fetch(API + path, {
-      method: "POST",
+      method: method || "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!res.ok) throw new Error("api " + res.status);
     return res.json();
   }
 
+  const CHAPTER_STATES = {
+    self_discovery: "SELF_DISCOVERY", reflection: "REFLECTION",
+    alignment: "ALIGNMENT", transformation: "TRANSFORMATION",
+  };
+
   async function open(chapter, onUnavailable) {
     ensureDom();
     try {
-      const data = await api("/session", { sessionId, chapter });
+      let data = await api("/sessions", { sessionId });
       sessionId = data.sessionId;
       localStorage.setItem("unbify-discover-session", sessionId);
+      /* the chapter opener the user just walked through acknowledges the
+         server-offered transition; illegal jumps are rejected server-side */
+      const target = CHAPTER_STATES[chapter];
+      if (data.interaction.type === "chapter_transition" && data.interaction.next === target) {
+        data = await api(`/sessions/${sessionId}/advance`, { to: target });
+      }
       document.body.classList.add("dx-open");
       handlePayload(data);
     } catch (e) {
-      console.info("Discover experience needs the node server (npm start) — continuing the cinematic journey.", e.message);
+      console.info("Discover experience needs the API server (see README) — continuing the cinematic journey.", e.message);
       if (onUnavailable) onUnavailable();
     }
   }
@@ -69,7 +85,7 @@
     busy = true;
     const elapsedMs = Date.now() - shownAt;
     try {
-      const data = await api("/respond", { sessionId, interactionId, response, elapsedMs });
+      const data = await api(`/sessions/${sessionId}/responses`, { interactionId, response, elapsedMs });
       await leaveScene();
       handlePayload(data);
     } catch (e) {
@@ -85,10 +101,18 @@
     progressEl.style.width = Math.round((data.estimatedProgress || 0) * 100) + "%";
 
     if (it.type === "chapter_transition") {
-      close();
-      window.dispatchEvent(new CustomEvent("discover:chapter", { detail: { next: it.next } }));
+      const opener = STATE_TO_OPENER[it.next];
+      if (opener) {
+        close();
+        window.dispatchEvent(new CustomEvent("discover:chapter", { detail: { next: opener } }));
+      } else {
+        /* PROLOGUE -> SELF_DISCOVERY happens inside the experience itself */
+        api(`/sessions/${sessionId}/advance`, { to: it.next }).then(handlePayload);
+      }
       return;
     }
+    if (it.type === "story_close") { renderStoryClose(newSceneFresh(), it); return; }
+    if (it.type === "opportunity_map") { renderMap(newSceneFresh(), it); return; }
     if (it.type === "journey_complete") {
       close();
       window.dispatchEvent(new CustomEvent("discover:complete"));
@@ -98,6 +122,93 @@
   }
 
   /* ---------------- rendering ---------------- */
+
+  function newSceneFresh() {
+    stage.innerHTML = "";
+    shownAt = Date.now();
+    return newScene();
+  }
+
+  function renderStoryClose(scene, it) {
+    scene.classList.add("dx-final");
+    const wrap = document.createElement("div");
+    wrap.className = "dx-reveal-lines";
+    (it.lines || []).forEach((line, i) => {
+      const p = document.createElement("p");
+      p.className = "dx-reveal-line";
+      p.textContent = line;
+      wrap.appendChild(p);
+      setTimeout(() => p.classList.add("in"), 600 + i * 1200);
+    });
+    scene.appendChild(wrap);
+    const btn = document.createElement("button");
+    btn.className = "dx-commit dx-continue";
+    btn.textContent = it.cta || "See your Opportunity Map";
+    scene.appendChild(btn);
+    setTimeout(() => btn.classList.add("ready"), 600 + (it.lines || []).length * 1200 + 600);
+    btn.addEventListener("click", async () => {
+      const data = await api(`/sessions/${sessionId}/advance`, { to: "OPPORTUNITY_MAP" });
+      handlePayload(data);
+    });
+  }
+
+  function renderMap(scene, it) {
+    scene.classList.add("dx-final");
+    headlineBlock(scene, it, { wordByWord: true });
+    const row = document.createElement("div");
+    row.className = "dx-lives";
+    let chosen = null;
+    (it.lives || []).forEach(l => {
+      const card = document.createElement("div");
+      card.className = "dx-life";
+      card.dataset.key = l.key;
+      const why = (l.whyThis || []).map(f =>
+        `<span style="display:inline-block;margin:2px 6px 2px 0;">${f.value >= 0 ? "+" : "−"} ${esc(f.factor)}</span>`).join("");
+      card.innerHTML = `
+        <h3>${esc(l.name)}</h3>
+        <p class="ess">${esc(l.essence)}</p>
+        <dl>
+          <dt>Why you</dt><dd>${esc(l.whyYou)}</dd>
+          <dt>Why this, honestly</dt><dd>${why || esc(l.whyNow || "")}</dd>
+          <dt>Missing pieces</dt><dd>${esc(l.requires)}</dd>
+          <dt>First experiment</dt><dd>${esc(l.firstExperiment)}</dd>
+        </dl>
+        <div class="meta"><span>risk · ${esc(l.risk)}</span><span>${esc(l.timeToValue)}</span><span>confidence ${esc(String(l.confidence))}%</span></div>`;
+      card.addEventListener("click", () => {
+        chosen = l.key;
+        row.querySelectorAll(".dx-life").forEach(c => c.classList.toggle("picked", c.dataset.key === l.key));
+        fetch(`/v1/opportunities/${l.key}/explore`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) }).catch(() => {});
+        act.classList.add("in");
+      });
+      row.appendChild(card);
+    });
+    scene.appendChild(row);
+    const ask = document.createElement("p");
+    ask.className = "dx-ask";
+    ask.textContent = "Choose the one you want to step toward.";
+    scene.appendChild(ask);
+    const act = document.createElement("div");
+    act.className = "dx-pills dx-calib";
+    (it.actions || []).forEach(a => {
+      const b = document.createElement("button");
+      b.className = "dx-pill";
+      b.textContent = a.label;
+      b.addEventListener("click", async () => {
+        if (!chosen) { ask.textContent = "Pick a life first — then choose how to begin."; return; }
+        if (a.id === "save") {
+          await fetch(`/v1/opportunities/${chosen}/save`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) }).catch(() => {});
+          b.classList.add("picked");
+          return;
+        }
+        const data = await api(`/sessions/${sessionId}/activate`, { action: a.id, opportunityId: chosen });
+        close();
+        window.dispatchEvent(new CustomEvent("discover:complete"));
+      });
+      act.appendChild(b);
+    });
+    scene.appendChild(act);
+    setTimeout(() => act.classList.add("in"), 1200);
+  }
 
   function leaveScene() {
     return new Promise(resolve => {

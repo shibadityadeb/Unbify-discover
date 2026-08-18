@@ -4,3 +4,10 @@
 .env
 data/
 node_modules/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+ml/registry/datasets/
+ml/registry/artifacts/
