@@ -32,11 +32,13 @@ def next_step(db: Session, session: DiscoverSession) -> dict:
     if state == "PROLOGUE":
         return _envelope(session, {"type": "chapter_transition", "next": "SELF_DISCOVERY"})
 
-    if state == "ACTIVATION":
-        return _envelope(session, {"type": "journey_complete"})
-
-    if state == "OPPORTUNITY_MAP":
-        return _envelope(session, _opportunity_map_payload(db, session))
+    if state == "DISCOVER_WORKSPACE":
+        if session.pending_instance_id:
+            inst = db.get(InteractionInstance, session.pending_instance_id)
+            if inst and inst.status == "pending":
+                return _envelope(session, inst.public_content)
+        from .workspace import workspace_summary
+        return _envelope(session, workspace_summary(db, session))
 
     if state == "STORY_COMPLETE":
         return _envelope(session, _story_close_payload(session))
@@ -278,6 +280,10 @@ def _practical_key(inst) -> str | None:
     for d in INTERACTIONS:
         if d["id"] == inst.definition_id:
             return d.get("practical_key")
+    from .workspace import QUESTIONS
+    for q in QUESTIONS:
+        if q["id"] == inst.definition_id:
+            return q.get("practical_key")
     return None
 
 
@@ -487,36 +493,16 @@ def _deterministic_mirror(session, tops, contradiction) -> list[dict]:
 
 def _story_close_payload(session) -> dict:
     return {"type": "story_close",
-            "lines": ["You came here looking for direction.", "What emerged wasn't one answer.",
-                      "It was a pattern.", "Now we can do something with it."],
-            "cta": "See your Opportunity Map"}
-
-
-def _opportunity_map_payload(db, session) -> dict:
-    lives = (session.practical_context or {}).get("_lives", [])
-    rec = (db.query(RecommendationItem)
-           .join(RecommendationSet, RecommendationItem.set_id == RecommendationSet.id)
-           .filter(RecommendationSet.session_id == session.id)
-           .order_by(RecommendationSet.created_at.desc(), RecommendationItem.rank).limit(3).all())
-    factors = {r.opportunity_id: r.factor_contributions for r in rec}
-    for l in lives:
-        raw = factors.get(l["key"], {})
-        l["whyThis"] = [
-            {"factor": k.replace("fit:", "").replace("_", " "), "value": round(v, 2)}
-            for k, v in sorted(raw.items(), key=lambda kv: -abs(kv[1]))
-            if not k.startswith("_")][:5]
-        l["firstExperiment"] = l.get("firstExperiment") or f"Give {l['name']} two honest hours this week."
-    return {"type": "opportunity_map",
-            "headline": "Your Opportunity Map",
-            "supportingText": "Three credible futures — each explainable, none of them destiny.",
-            "lives": lives,
-            "actions": [{"id": "explore", "label": "Explore this life"}, {"id": "save", "label": "Save it"},
-                        {"id": "start", "label": "Start a first experiment"}]}
+            "lines": ["You came here looking for direction.",
+                      "We didn't find one label.",
+                      "We found a pattern.",
+                      "And now we can do something with it."],
+            "cta": "Enter your workspace"}
 
 
 def _envelope(session, interaction: dict) -> dict:
     order = ["PROLOGUE", "SELF_DISCOVERY", "REFLECTION", "ALIGNMENT", "TRANSFORMATION",
-             "STORY_COMPLETE", "OPPORTUNITY_MAP", "ACTIVATION"]
+             "STORY_COMPLETE", "DISCOVER_WORKSPACE"]
     idx = order.index(session.journey_status)
     within = min(1.0, (session.counters or {}).get("chapter_interactions", 0) / 8)
     progress = min(0.98, (idx + within) / len(order))

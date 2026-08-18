@@ -169,17 +169,62 @@ def _mark(db, opportunity_id, session_id, field):
 
 @router.post("/discover/sessions/{session_id}/activate")
 def activate(session_id: str, body: dict, db: Session = Depends(get_db)):
+    """Record a chosen path from the workspace. The workspace persists — no state change."""
     session = _get_session(db, session_id)
-    try:
-        orchestrator.acknowledge_transition(db, session, "ACTIVATION")
-    except statemachine.InvalidTransition as e:
-        raise HTTPException(409, str(e))
+    if session.journey_status != "DISCOVER_WORKSPACE":
+        raise HTTPException(409, "the story must complete before activation")
     emit(db, session_id, "path.selected", {"action": body.get("action"), "opportunity": body.get("opportunityId")})
     if body.get("opportunityId"):
         db.add(Outcome(session_id=session_id, opportunity_id=body["opportunityId"],
                        kind="path_started", payload={"action": body.get("action")}))
     db.commit()
     return {"ok": True, "state": session.journey_status}
+
+
+@router.get("/workspace/{session_id}")
+def workspace(session_id: str, db: Session = Depends(get_db)):
+    session = _get_session(db, session_id)
+    if session.journey_status != "DISCOVER_WORKSPACE":
+        raise HTTPException(409, "workspace opens after the story completes")
+    from ..workspace import workspace_summary
+    out = workspace_summary(db, session)
+    db.commit()
+    return {"sessionId": session.id, **out}
+
+
+@router.post("/workspace/{session_id}/questions/next")
+def next_question(session_id: str, db: Session = Depends(get_db)):
+    """Serve the single highest-value adaptive question (never a form)."""
+    session = _get_session(db, session_id)
+    if session.journey_status != "DISCOVER_WORKSPACE":
+        raise HTTPException(409, "workspace opens after the story completes")
+    from ..workspace import pending_questions
+    from ..orchestrator import _instance, _public_content
+    pending = pending_questions(session, 1)
+    if not pending:
+        from ..workspace import workspace_summary
+        out = workspace_summary(db, session)
+        db.commit()
+        return {"sessionId": session.id, "interaction": out, "state": session.journey_status}
+    q = pending[0]
+    definition = {"id": q["id"], "type": q["type"], "content": q["content"],
+                  "practical_key": q["practical_key"]}
+    public = _public_content(definition)
+    inst = _instance(db, session, q["id"], q["type"], q["content"], public, None)
+    db.commit()
+    return {"sessionId": session.id, "interaction": inst.public_content, "state": session.journey_status}
+
+
+@router.get("/workspace/{session_id}/actions/{action_id}")
+def action_detail(session_id: str, action_id: str, db: Session = Depends(get_db)):
+    session = _get_session(db, session_id)
+    if session.journey_status != "DISCOVER_WORKSPACE":
+        raise HTTPException(409, "workspace opens after the story completes")
+    from ..workspace import action_content
+    out = action_content(db, session, action_id)
+    emit(db, session_id, "workspace.action_opened", {"action": action_id})
+    db.commit()
+    return {"sessionId": session.id, **out}
 
 
 @router.post("/outcomes")

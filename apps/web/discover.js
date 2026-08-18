@@ -12,7 +12,7 @@
     ALIGNMENT: "Chapter III · Alignment",
     TRANSFORMATION: "Chapter IV · Transformation",
     STORY_COMPLETE: "The Story, Complete",
-    OPPORTUNITY_MAP: "Your Opportunity Map",
+    DISCOVER_WORKSPACE: "My UNBIFY",
   };
   const STATE_TO_OPENER = {
     REFLECTION: "reflection", ALIGNMENT: "alignment", TRANSFORMATION: "transformation",
@@ -80,7 +80,14 @@
     setTimeout(() => { stage.innerHTML = ""; }, 1000);
   }
 
+  let respondRef = null;
+
   async function respond(interactionId, response) {
+    if (respondRef) { const fn = respondRef; respondRef = null; return fn(interactionId, response); }
+    return respondMain(interactionId, response);
+  }
+
+  async function respondMain(interactionId, response) {
     if (busy) return;
     busy = true;
     const elapsedMs = Date.now() - shownAt;
@@ -112,12 +119,7 @@
       return;
     }
     if (it.type === "story_close") { renderStoryClose(newSceneFresh(), it); return; }
-    if (it.type === "opportunity_map") { renderMap(newSceneFresh(), it); return; }
-    if (it.type === "journey_complete") {
-      close();
-      window.dispatchEvent(new CustomEvent("discover:complete"));
-      return;
-    }
+    if (it.type === "workspace") { renderWorkspace(newSceneFresh(), it); return; }
     render(it);
   }
 
@@ -147,67 +149,225 @@
     scene.appendChild(btn);
     setTimeout(() => btn.classList.add("ready"), 600 + (it.lines || []).length * 1200 + 600);
     btn.addEventListener("click", async () => {
-      const data = await api(`/sessions/${sessionId}/advance`, { to: "OPPORTUNITY_MAP" });
+      const data = await api(`/sessions/${sessionId}/advance`, { to: "DISCOVER_WORKSPACE" });
       handlePayload(data);
     });
   }
 
-  function renderMap(scene, it) {
-    scene.classList.add("dx-final");
-    headlineBlock(scene, it, { wordByWord: true });
-    const row = document.createElement("div");
-    row.className = "dx-lives";
-    let chosen = null;
-    (it.lives || []).forEach(l => {
-      const card = document.createElement("div");
-      card.className = "dx-life";
-      card.dataset.key = l.key;
-      const why = (l.whyThis || []).map(f =>
-        `<span style="display:inline-block;margin:2px 6px 2px 0;">${f.value >= 0 ? "+" : "−"} ${esc(f.factor)}</span>`).join("");
-      card.innerHTML = `
-        <h3>${esc(l.name)}</h3>
-        <p class="ess">${esc(l.essence)}</p>
-        <dl>
-          <dt>Why you</dt><dd>${esc(l.whyYou)}</dd>
-          <dt>Why this, honestly</dt><dd>${why || esc(l.whyNow || "")}</dd>
-          <dt>Missing pieces</dt><dd>${esc(l.requires)}</dd>
-          <dt>First experiment</dt><dd>${esc(l.firstExperiment)}</dd>
-        </dl>
-        <div class="meta"><span>risk · ${esc(l.risk)}</span><span>${esc(l.timeToValue)}</span><span>confidence ${esc(String(l.confidence))}%</span></div>`;
-      card.addEventListener("click", () => {
-        chosen = l.key;
-        row.querySelectorAll(".dx-life").forEach(c => c.classList.toggle("picked", c.dataset.key === l.key));
-        fetch(`/v1/opportunities/${l.key}/explore`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) }).catch(() => {});
-        act.classList.add("in");
-      });
-      row.appendChild(card);
+  /* ---------------- PART TWO: the persistent workspace ---------------- */
+
+  async function wsApi(path, body, method) {
+    const res = await fetch("/v1/workspace/" + sessionId + path, {
+      method: method || "GET",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
-    scene.appendChild(row);
-    const ask = document.createElement("p");
-    ask.className = "dx-ask";
-    ask.textContent = "Choose the one you want to step toward.";
-    scene.appendChild(ask);
-    const act = document.createElement("div");
-    act.className = "dx-pills dx-calib";
-    (it.actions || []).forEach(a => {
-      const b = document.createElement("button");
-      b.className = "dx-pill";
-      b.textContent = a.label;
-      b.addEventListener("click", async () => {
-        if (!chosen) { ask.textContent = "Pick a life first — then choose how to begin."; return; }
-        if (a.id === "save") {
-          await fetch(`/v1/opportunities/${chosen}/save`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) }).catch(() => {});
-          b.classList.add("picked");
-          return;
-        }
-        const data = await api(`/sessions/${sessionId}/activate`, { action: a.id, opportunityId: chosen });
-        close();
-        window.dispatchEvent(new CustomEvent("discover:complete"));
+    if (!res.ok) throw new Error("ws " + res.status);
+    return res.json();
+  }
+
+  function renderWorkspace(scene, ws) {
+    scene.classList.add("dx-ws");
+    scene.innerHTML = `
+      <div class="ws-head">
+        <p class="ws-kicker">My UNBIFY</p>
+        <p class="ws-clarity">Profile clarity · <em>${esc(ws.clarity)}</em></p>
+      </div>
+      <div class="ws-tabs">
+        <button class="ws-tab active" data-tab="actions">Actions</button>
+        <button class="ws-tab" data-tab="questions">Questions</button>
+      </div>
+      <div class="ws-body"></div>`;
+    const body = scene.querySelector(".ws-body");
+    const tabs = scene.querySelectorAll(".ws-tab");
+    tabs.forEach(t => t.addEventListener("click", () => {
+      tabs.forEach(x => x.classList.toggle("active", x === t));
+      if (t.dataset.tab === "actions") showActions(body, ws);
+      else showQuestions(body, ws);
+    }));
+    showActions(body, ws);
+  }
+
+  function showActions(body, ws) {
+    body.innerHTML = "";
+    const list = document.createElement("div");
+    list.className = "ws-actions";
+    (ws.actions || []).forEach((a, i) => {
+      const row = document.createElement("button");
+      row.className = "ws-action";
+      row.style.animationDelay = (i * 70) + "ms";
+      row.innerHTML = `<span class="lbl">${esc(a.label)}</span><span class="hint">${esc(a.hint)}</span>
+        <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M0 6 H31 M26 1.5 L31.5 6 L26 10.5"/></svg>`;
+      row.addEventListener("click", async () => {
+        const detail = await wsApi("/actions/" + a.id);
+        showActionDetail(body, ws, detail);
       });
-      act.appendChild(b);
+      list.appendChild(row);
     });
-    scene.appendChild(act);
-    setTimeout(() => act.classList.add("in"), 1200);
+    body.appendChild(list);
+  }
+
+  function backRow(body, ws) {
+    const back = document.createElement("button");
+    back.className = "dx-skip ws-back";
+    back.textContent = "← Back to actions";
+    back.addEventListener("click", () => showActions(body, ws));
+    return back;
+  }
+
+  function showActionDetail(body, ws, d) {
+    body.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "ws-detail";
+    const h = document.createElement("h3");
+    h.className = "ws-detail-head";
+    h.textContent = d.headline;
+    wrap.appendChild(h);
+
+    if (d.kind === "map") {
+      const sub = document.createElement("p");
+      sub.className = "dx-support";
+      sub.textContent = d.supportingText || "";
+      wrap.appendChild(sub);
+      const row = document.createElement("div");
+      row.className = "dx-lives";
+      (d.lives || []).forEach(l => {
+        const card = document.createElement("div");
+        card.className = "dx-life";
+        const why = (l.whyThis || []).map(f =>
+          `<span style="display:inline-block;margin:2px 6px 2px 0;">${f.value >= 0 ? "+" : "−"} ${esc(f.factor)}</span>`).join("");
+        card.innerHTML = `
+          <h3>${esc(l.name)}</h3>
+          <p class="ess">${esc(l.essence)}</p>
+          <dl>
+            <dt>Why you</dt><dd>${esc(l.whyYou)}</dd>
+            <dt>Why this, honestly</dt><dd>${why}</dd>
+            <dt>Missing pieces</dt><dd>${esc(l.requires)}</dd>
+            <dt>First experiment</dt><dd>${esc(l.firstExperiment)}</dd>
+          </dl>
+          <div class="meta"><span>risk · ${esc(l.risk)}</span><span>${esc(l.timeToValue)}</span><span>confidence ${esc(String(l.confidence))}%</span></div>
+          <div class="ws-life-acts">
+            <button class="dx-pill" data-act="save">Save</button>
+            <button class="dx-pill" data-act="start">Start a first experiment</button>
+          </div>`;
+        card.querySelector('[data-act="save"]').addEventListener("click", async (e) => {
+          e.target.classList.add("picked");
+          fetch(`/v1/opportunities/${l.key}/save`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) }).catch(() => {});
+        });
+        card.querySelector('[data-act="start"]').addEventListener("click", async (e) => {
+          e.target.classList.add("picked");
+          e.target.textContent = "Started — it's yours now";
+          await api(`/sessions/${sessionId}/activate`, { action: "start", opportunityId: l.key }).catch(() => {});
+          fetch(`/v1/opportunities/${l.key}/explore`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId }) }).catch(() => {});
+        });
+        row.appendChild(card);
+      });
+      wrap.appendChild(row);
+    } else if (d.kind === "list") {
+      const ul = document.createElement("div");
+      ul.className = "ws-list";
+      (d.items || []).forEach(item => {
+        const p = document.createElement("p");
+        p.className = "ws-item";
+        p.textContent = item;
+        ul.appendChild(p);
+      });
+      wrap.appendChild(ul);
+    } else if (d.kind === "compare") {
+      const row = document.createElement("div");
+      row.className = "dx-lives";
+      [d.a, d.b].forEach(l => {
+        const card = document.createElement("div");
+        card.className = "dx-life";
+        card.style.cursor = "default";
+        const why = (l.whyThis || []).map(f =>
+          `<span style="display:inline-block;margin:2px 6px 2px 0;">${f.value >= 0 ? "+" : "−"} ${esc(f.factor)}</span>`).join("");
+        card.innerHTML = `<h3>${esc(l.name)}</h3><p class="ess">${esc(l.essence)}</p>
+          <dl><dt>For you because</dt><dd>${esc(l.whyYou)}</dd>
+          <dt>Factors</dt><dd>${why}</dd>
+          <dt>Missing</dt><dd>${esc(l.requires)}</dd></dl>
+          <div class="meta"><span>risk · ${esc(l.risk)}</span><span>${esc(l.timeToValue)}</span></div>`;
+        row.appendChild(card);
+      });
+      wrap.appendChild(row);
+    } else {
+      const t = document.createElement("p");
+      t.className = "ws-single-title";
+      t.textContent = d.title || "";
+      wrap.appendChild(t);
+      const tx = document.createElement("p");
+      tx.className = "ws-single-text";
+      tx.textContent = d.text || "";
+      wrap.appendChild(tx);
+    }
+    if (d.note) {
+      const n = document.createElement("p");
+      n.className = "ws-note";
+      n.textContent = d.note;
+      wrap.appendChild(n);
+    }
+    wrap.appendChild(backRow(body, ws));
+    body.appendChild(wrap);
+  }
+
+  function showQuestions(body, ws) {
+    body.innerHTML = "";
+    const wrap = document.createElement("div");
+    wrap.className = "ws-detail";
+    const invite = document.createElement("p");
+    invite.className = "ws-single-text";
+    invite.textContent = ws.questions?.invite || "";
+    wrap.appendChild(invite);
+    if (ws.questions?.available > 0) {
+      const btn = document.createElement("button");
+      btn.className = "dx-commit ready";
+      btn.textContent = "Continue";
+      btn.addEventListener("click", () => nextQuestion(body, ws));
+      wrap.appendChild(btn);
+    }
+    body.appendChild(wrap);
+  }
+
+  async function nextQuestion(body, ws) {
+    const data = await wsApi("/questions/next", {}, "POST");
+    const it = data.interaction;
+    if (it.type === "workspace") { renderWorkspace(newSceneFresh(), it); return; }
+    body.innerHTML = "";
+    const holder = document.createElement("div");
+    holder.className = "ws-question dx-scene entered";
+    body.appendChild(holder);
+    shownAt = Date.now();
+    const scene = holder;
+    /* render the question with the standard primitives, then return to the tab */
+    const origRespond = respond;
+    const localRespond = async (interactionId, response) => {
+      if (busy) return;
+      busy = true;
+      try {
+        const out = await api(`/sessions/${sessionId}/responses`, { interactionId, response, elapsedMs: Date.now() - shownAt });
+        busy = false;
+        if (out.interaction?.type === "workspace") renderWorkspace(newSceneFresh(), out.interaction);
+      } catch (e) { busy = false; console.error(e); }
+    };
+    renderInto(scene, it, localRespond);
+  }
+
+  function renderInto(scene, it, respondFn) {
+    const saved = respondRef;
+    respondRef = respondFn;
+    try {
+      switch (it.type) {
+        case "scenario_choice": renderScenario(scene, it); break;
+        case "binary_tension":
+        case "spectrum": renderSlider(scene, it); break;
+        case "forced_rank":
+        case "object_sort": renderChips(scene, it); break;
+        case "micro_reflection": renderReflection(scene, it); break;
+        default: scene.textContent = "…";
+      }
+    } finally {
+      /* respondRef restored on next full render */
+    }
   }
 
   function leaveScene() {

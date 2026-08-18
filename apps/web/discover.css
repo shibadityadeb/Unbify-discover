@@ -263,3 +263,54 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
   .dv-scene, .dx-chip, .dx-handle, .dx-life { animation: none !important; }
   .dx-scene.entered, .dx-word.in, .dx-opt.in, .dx-reveal-line.in { transition-duration: .01s !important; }
 }
+
+/* ============ PART TWO — the persistent workspace ============ */
+.dx-ws { width: min(980px, 100%); text-align: center; }
+.ws-head { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.ws-kicker {
+  font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 4.4vh, 46px);
+  background: linear-gradient(178deg, #a9853f 8%, #86642e 62%, #74561f 100%);
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.ws-clarity { font-family: var(--sans); font-size: 10.5px; letter-spacing: .3em; text-transform: uppercase; color: #ab9668; }
+.ws-clarity em { font-style: normal; color: var(--orange); }
+.ws-tabs { margin-top: 4vh; display: flex; gap: 34px; justify-content: center; border-bottom: 1px solid rgba(201,167,110,.35); padding-bottom: 0; }
+.ws-tab {
+  background: none; border: none; cursor: pointer; padding: 10px 6px 14px; position: relative;
+  font-family: var(--sans); font-size: 12px; letter-spacing: .3em; text-indent: .3em; text-transform: uppercase;
+  color: #a3947e; transition: color .4s ease;
+}
+.ws-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--orange); transform: scaleX(0); transition: transform .45s cubic-bezier(.3,.6,.3,1); }
+.ws-tab.active { color: #6d5a3a; }
+.ws-tab.active::after { transform: scaleX(1); }
+.ws-body { margin-top: 4.5vh; text-align: center; }
+.ws-actions { display: flex; flex-direction: column; gap: 12px; max-width: 620px; margin: 0 auto; }
+.ws-action {
+  display: flex; align-items: baseline; gap: 16px; text-align: left;
+  background: rgba(253,249,240,.5); border: 1px solid rgba(201,167,110,.35); border-radius: 6px;
+  padding: 18px 22px; cursor: pointer;
+  transition: transform .4s cubic-bezier(.3,.7,.3,1), border-color .4s ease, box-shadow .4s ease;
+  animation: sceneIn .7s cubic-bezier(.3,.6,.3,1) both;
+}
+.ws-action:hover { transform: translateX(6px); border-color: rgba(216,150,80,.6); box-shadow: 0 8px 28px rgba(170,124,58,.14); }
+.ws-action .lbl { font-family: var(--serif); font-weight: 500; font-size: clamp(18px, 2.5vh, 22px); color: #55483a; white-space: nowrap; }
+.ws-action .hint { flex: 1; font-size: 13.5px; color: #97876e; font-style: italic; }
+.ws-action svg { width: 22px; color: #b08d4f; flex: 0 0 auto; align-self: center; }
+.ws-detail { max-width: 860px; margin: 0 auto; }
+.ws-detail-head {
+  font-family: var(--serif); font-weight: 500; font-size: clamp(24px, 3.4vh, 34px);
+  color: #8d6a2b; margin-bottom: 18px;
+}
+.ws-single-title { font-family: var(--serif); font-size: clamp(20px, 2.8vh, 26px); color: #55483a; margin-top: 8px; }
+.ws-single-text { margin-top: 14px; font-size: clamp(16px, 2.3vh, 20px); line-height: 1.6; color: #6e655b; max-width: 36em; margin-left: auto; margin-right: auto; }
+.ws-list { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+.ws-item { font-family: var(--serif); font-size: clamp(17px, 2.4vh, 21px); line-height: 1.5; color: #5d5347; }
+.ws-note { margin-top: 22px; font-style: italic; font-size: 14px; color: #97876e; }
+.ws-back { margin-top: 30px; }
+.ws-life-acts { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+.ws-life-acts .dx-pill { font-size: 9.5px; padding: 9px 16px; }
+.ws-question { min-height: 40vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+@media (max-width: 880px) {
+  .ws-action { flex-direction: column; gap: 4px; }
+  .ws-action .lbl { white-space: normal; }
+}

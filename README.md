@@ -4,12 +4,19 @@ A production-grade adaptive **Human Opportunity Engine** wrapped in a cinematic,
 four-chapter self-discovery story.
 
 ```
-INTRO / PROLOGUE → SELF DISCOVERY → REFLECTION → ALIGNMENT → TRANSFORMATION
-→ STORY CLOSING → OPPORTUNITY MAP → ACTIVATION
+PART ONE — DISCOVER (finite story)
+INTRO / PROLOGUE → SELF DISCOVERY → REFLECTION → ALIGNMENT → TRANSFORMATION → STORY CLOSE
+
+PART TWO — MY UNBIFY (persistent workspace)
+DISCOVER_WORKSPACE:  QUESTIONS (adaptive deepening) · ACTIONS (Opportunity Map,
+best next move, experiments, gaps, AI leverage, compare paths…)
 ```
 
-The story only concludes after Chapter 4. The Opportunity Map is unreachable
-earlier — enforced by a server-owned state machine and covered by tests.
+The story only concludes after Chapter 4; the workspace (and the Opportunity
+Map inside its Actions tab) is unreachable earlier — enforced by the
+server-owned state machine and covered by tests. Chapter interactions are
+grounded, instantly understandable behavior and trade-offs — never abstract
+personality symbolism.
 
 ## Architecture (short version)
 

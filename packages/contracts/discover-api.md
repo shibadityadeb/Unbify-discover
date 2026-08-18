@@ -17,9 +17,9 @@ All journey state is server-authoritative. Base path: `/v1`.
 - `GET /v1/discover/sessions/{id}/profile` — the user's own mirror (transparency + correction rights)
 
 ## Interaction payload types
-`visual_choice | binary_tension | spectrum | scenario_choice | forced_rank | object_sort |
+`binary_tension | spectrum | scenario_choice | forced_rank | object_sort |
 micro_reflection | reveal | possible_lives | final | chapter_transition | story_close |
-opportunity_map | journey_complete`
+workspace`
 
 Response payloads by type:
 - choices → `{optionId}`
@@ -28,10 +28,18 @@ Response payloads by type:
 - micro_reflection → `{text}` or `{skipped: true}`
 - reveal → `{optionId: yes|kind_of|no|first|second|depends}`
 
+## Workspace (PART TWO — after STORY_COMPLETE only; 409 earlier)
+- `GET /v1/workspace/{sid}` → `{clarity, questions: {available, invite}, actions: []}`
+- `POST /v1/workspace/{sid}/questions/next` → one highest-value adaptive question
+  (answered through the standard `/responses` endpoint)
+- `GET /v1/workspace/{sid}/actions/{actionId}` → intelligence-generated module content
+  (`explore` returns the Opportunity Map with `whyThis` factor contributions)
+
 ## Opportunities
 - `POST /v1/opportunities/{id}/explore` `{sessionId}`
 - `POST /v1/opportunities/{id}/save` `{sessionId}`
-- `POST /v1/discover/sessions/{id}/activate` `{action, opportunityId}`
+- `POST /v1/discover/sessions/{id}/activate` `{action, opportunityId}` — records the chosen
+  path; the workspace persists (no state change)
 - `POST /v1/outcomes` `{sessionId?, opportunityId?, kind, payload}`
 
 Hidden option signals, policy internals, and factor math never appear in public payloads

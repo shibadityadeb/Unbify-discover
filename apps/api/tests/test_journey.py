@@ -1,5 +1,6 @@
-"""Critical E2E: anonymous user completes all four chapters; the Opportunity Map
-is unreachable before STORY_COMPLETE; final map carries explainable factors."""
+"""Critical E2E: anonymous user completes all four chapters; the workspace (and
+the Opportunity Map inside it) is unreachable before STORY_COMPLETE; the map
+carries explainable factors; adaptive Questions work after the story."""
 
 
 def drive_response(interaction):
@@ -27,44 +28,56 @@ def test_full_journey(client):
     assert data["state"] == "PROLOGUE"
 
     seen_states = set()
-    map_payload = None
     for _ in range(80):
         it = data["interaction"]
         seen_states.add(data["state"])
-        if it["type"] == "journey_complete":
+        if it["type"] == "workspace":
             break
         if it["type"] == "chapter_transition":
             data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": it["next"]}).json()
             continue
         if it["type"] == "story_close":
-            data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "OPPORTUNITY_MAP"}).json()
-            continue
-        if it["type"] == "opportunity_map":
-            map_payload = it
-            assert data["state"] == "OPPORTUNITY_MAP"
-            r = client.post(f"/v1/discover/sessions/{sid}/activate",
-                            json={"action": "start", "opportunityId": it["lives"][0]["key"]})
-            assert r.status_code == 200
-            data = client.get(f"/v1/discover/sessions/{sid}/next").json()
+            data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "DISCOVER_WORKSPACE"}).json()
             continue
         resp = drive_response(it)
         data = client.post(f"/v1/discover/sessions/{sid}/responses",
                            json={"interactionId": it["id"], "response": resp, "elapsedMs": 3000}).json()
 
-    assert data["interaction"]["type"] == "journey_complete"
+    assert data["interaction"]["type"] == "workspace"
     for state in ["SELF_DISCOVERY", "REFLECTION", "ALIGNMENT", "TRANSFORMATION",
-                  "STORY_COMPLETE", "OPPORTUNITY_MAP"]:
+                  "STORY_COMPLETE", "DISCOVER_WORKSPACE"]:
         assert state in seen_states, f"never reached {state}"
-    assert map_payload and len(map_payload["lives"]) == 3
-    assert all(l.get("whyThis") for l in map_payload["lives"]), "recommendations must be explainable"
-    pathways = {l["key"].split("_")[0] for l in map_payload["lives"]}
-    assert len(pathways) >= 2, "map must be diverse"
+
+    # the Opportunity Map lives inside ACTIONS
+    ws = client.get(f"/v1/workspace/{sid}").json()
+    assert ws["clarity"] in ("Early", "Developing", "Strong", "Very strong")
+    action_ids = [a["id"] for a in ws["actions"]]
+    assert "explore" in action_ids and "next_move" in action_ids
+    mp = client.get(f"/v1/workspace/{sid}/actions/explore").json()
+    assert mp["kind"] == "map" and len(mp["lives"]) == 3
+    assert all(l.get("whyThis") for l in mp["lives"]), "recommendations must be explainable"
+    assert len({l["pathway"] for l in mp["lives"]}) >= 2, "map must be diverse"
+
+    # adaptive Questions: one at a time, never a form; answers update the profile
+    q = client.post(f"/v1/workspace/{sid}/questions/next").json()
+    assert q["interaction"]["type"] in ("micro_reflection", "spectrum", "scenario_choice", "object_sort")
+    ans = drive_response(q["interaction"])
+    r = client.post(f"/v1/discover/sessions/{sid}/responses",
+                    json={"interactionId": q["interaction"]["id"], "response": ans}).json()
+    assert r["state"] == "DISCOVER_WORKSPACE"
+
+    # activation records the chosen path without ending the workspace
+    r = client.post(f"/v1/discover/sessions/{sid}/activate",
+                    json={"action": "start", "opportunityId": mp["lives"][0]["key"]})
+    assert r.status_code == 200 and r.json()["state"] == "DISCOVER_WORKSPACE"
 
 
-def test_map_unreachable_early(client):
+def test_workspace_unreachable_early(client):
     data = client.post("/v1/discover/sessions", json={}).json()
     sid = data["sessionId"]
-    r = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "OPPORTUNITY_MAP"})
+    r = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "DISCOVER_WORKSPACE"})
+    assert r.status_code == 409
+    r = client.get(f"/v1/workspace/{sid}")
     assert r.status_code == 409
     r = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "SELF_DISCOVERY"})
     assert r.status_code == 200

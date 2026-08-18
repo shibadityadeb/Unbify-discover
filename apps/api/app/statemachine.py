@@ -1,5 +1,6 @@
 """Server-authoritative journey state machine. Frontend URLs never decide state.
-The Opportunity Map is unreachable before STORY_COMPLETE."""
+PART ONE (the four-chapter story) must finish before PART TWO (the persistent
+Discover Workspace with Questions + Actions, where the Opportunity Map lives)."""
 
 STATES = [
     "PROLOGUE",
@@ -8,8 +9,7 @@ STATES = [
     "ALIGNMENT",
     "TRANSFORMATION",
     "STORY_COMPLETE",
-    "OPPORTUNITY_MAP",
-    "ACTIVATION",
+    "DISCOVER_WORKSPACE",
 ]
 
 TRANSITIONS: dict[str, list[str]] = {
@@ -18,9 +18,8 @@ TRANSITIONS: dict[str, list[str]] = {
     "REFLECTION": ["ALIGNMENT"],
     "ALIGNMENT": ["TRANSFORMATION"],
     "TRANSFORMATION": ["STORY_COMPLETE"],
-    "STORY_COMPLETE": ["OPPORTUNITY_MAP"],
-    "OPPORTUNITY_MAP": ["ACTIVATION"],
-    "ACTIVATION": [],
+    "STORY_COMPLETE": ["DISCOVER_WORKSPACE"],
+    "DISCOVER_WORKSPACE": [],
 }
 
 CHAPTER_STATES = ["SELF_DISCOVERY", "REFLECTION", "ALIGNMENT", "TRANSFORMATION"]
