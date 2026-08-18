@@ -1,0 +1,10 @@
+{
+  "name": "unbify-discover",
+  "version": "1.0.0",
+  "description": "UNBIFY Discover — cinematic self-discovery journey with an adaptive experience orchestrator",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=18" }
+}

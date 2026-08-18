@@ -194,12 +194,14 @@
       setTimeout(() => { window.location.href = LINKS.scene01; }, 1400);
       return;
     }
-    /* the landscape inside Chapter I becomes the landscape of Chapter II */
+    /* the artwork becomes the doorway — the Discover experience opens inside the light */
     setTimeout(() => {
-      document.body.classList.add("ch2");
-      clearTimeout(cue2Timer);
-      cue2Timer = setTimeout(() => document.body.classList.add("cue2"), 3400);
-    }, 1000);
+      window.UnbifyDiscover.open("self_discovery", () => {
+        document.body.classList.add("ch2");
+        clearTimeout(cue2Timer);
+        cue2Timer = setTimeout(() => document.body.classList.add("cue2"), 3400);
+      });
+    }, 1050);
     setTimeout(() => {
       document.body.classList.remove("enter-scene");
       entering = false; transitioning = false;
@@ -309,11 +311,13 @@
     }
     /* the hold: stillness earns its weight before moving */
     setTimeout(() => document.body.classList.add("enter-ch2"), 500);
-    /* straight lines soften into flow; ch3 rises through the same morning */
+    /* the Roman path becomes the doorway into Reflection */
     setTimeout(() => {
-      document.body.classList.add("ch3");
-      clearTimeout(cue3Timer);
-      cue3Timer = setTimeout(() => document.body.classList.add("cue3"), 3400);
+      window.UnbifyDiscover.open("reflection", () => {
+        document.body.classList.add("ch3");
+        clearTimeout(cue3Timer);
+        cue3Timer = setTimeout(() => document.body.classList.add("cue3"), 3400);
+      });
     }, 1600);
     setTimeout(() => {
       document.body.classList.remove("enter-ch2");
@@ -371,11 +375,13 @@
       setTimeout(() => { window.location.href = LINKS.alignment01; }, 1400);
       return;
     }
-    /* the light expands and the world opens into ch4 */
+    /* the river becomes the doorway into Alignment */
     setTimeout(() => {
-      document.body.classList.add("ch4");
-      clearTimeout(cue4Timer);
-      cue4Timer = setTimeout(() => document.body.classList.add("cue4"), 3600);
+      window.UnbifyDiscover.open("alignment", () => {
+        document.body.classList.add("ch4");
+        clearTimeout(cue4Timer);
+        cue4Timer = setTimeout(() => document.body.classList.add("cue4"), 3600);
+      });
     }, 1150);
     setTimeout(() => {
       document.body.classList.remove("enter-ch3");
@@ -428,7 +434,9 @@
     document.body.classList.add("enter-ch4");
     setTimeout(() => {
       if (LINKS.transformation01) { window.location.href = LINKS.transformation01; return; }
-      document.body.classList.add("scene4-open");
+      window.UnbifyDiscover.open("transformation", () => {
+        document.body.classList.add("scene4-open");
+      });
       document.body.classList.remove("enter-ch4");
       enteringCh4 = false; transitioning = false;
     }, 2000);
@@ -463,13 +471,34 @@
     document.body.classList.remove("scene4-open", "enter-ch4");
   });
 
+  /* ---------- Discover experience handoffs ---------- */
+  window.addEventListener("discover:chapter", e => {
+    const next = e.detail.next;
+    if (next === "reflection") {
+      document.body.classList.add("ch2");
+      clearTimeout(cue2Timer);
+      cue2Timer = setTimeout(() => document.body.classList.add("cue2"), 3400);
+    } else if (next === "alignment") {
+      document.body.classList.add("ch2", "ch3");
+      clearTimeout(cue3Timer);
+      cue3Timer = setTimeout(() => document.body.classList.add("cue3"), 3400);
+    } else if (next === "transformation") {
+      document.body.classList.add("ch2", "ch3", "ch4");
+      clearTimeout(cue4Timer);
+      cue4Timer = setTimeout(() => document.body.classList.add("cue4"), 3600);
+    }
+  });
+  window.addEventListener("discover:complete", () => {
+    document.body.classList.add("scene4-open");
+  });
+
   /* ---------- scroll continues the journey ---------- */
   let lastAdvance = 0;
   function advance() {
     const now = Date.now();
     if (now - lastAdvance < 1800) return;
     const b = document.body.classList;
-    if (b.contains("scene4-open") || transitioning || overlayOpen()) return;
+    if (b.contains("scene4-open") || b.contains("dx-open") || transitioning || overlayOpen()) return;
     lastAdvance = now;
     if (b.contains("ch4")) {
       enterTransformation();
