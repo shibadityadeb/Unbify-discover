@@ -946,3 +946,17 @@ class AnalysisVersion(Base):
     supersedes_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
     change_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
+
+
+class RequestLatency(Base):
+    """Per-request phase timings — the substrate for p50/p95/p99 monitoring and
+    for telling a UX problem apart from a backend one."""
+    __tablename__ = "request_latency"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str | None] = mapped_column(String(32), index=True, nullable=True)
+    kind: Mapped[str] = mapped_column(String(40), index=True)   # response | analysis | workspace
+    total_ms: Mapped[int] = mapped_column(Integer)
+    phases: Mapped[dict] = mapped_column(JSON, default=dict)
+    over_budget: Mapped[list] = mapped_column(JSON, default=list)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)

@@ -166,6 +166,35 @@ infra           docker-compose for local Postgres(pgvector)
 docs            architecture + ADRs
 ```
 
+## Perceived latency
+
+A pause after a selection must never read as unresponsiveness, and must never
+pretend to be narrative.
+
+The client acknowledges a tap **locally within a frame** (measured: ~3ms) — the
+chosen thing settles, the rest softens, duplicate input locks — and the leave
+choreography starts *alongside* the request rather than after it, so animation
+and network overlap. The answered scene stays on screen while the backend works
+instead of blanking, so processing has context.
+
+Thinking states escalate only as far as the actual wait requires: nothing under
+500ms, ambient motion (no words) to 2s, one plain line to 5s, explicit
+transparency beyond that — each held long enough to read. There is no spinner
+and no rotating copy pool.
+
+The backend tells the client what genuinely changed (`processing.changed/kind/
+note`), so "that answer changed something" appears only after a real
+contradiction, correction, newly-learned fact or hypothesis promotion — never
+on ordinary confidence drift, never twice running, and never more often than
+once every five answers. Ordinary work gets motion; only real change gets words.
+
+Failure is honest: the thinking state stops, "That didn't go through / Try
+again" appears with the answer preserved, and the retry re-submits it.
+Submission is idempotent, so a retry cannot double-count evidence or advance a
+chapter twice. Phase timings are recorded per request
+(`GET /v1/debug/latency` → p50/p75/p95/p99 against budgets), and the browser
+console prints an acknowledgement/network/render/perceived breakdown in dev.
+
 ## Environment
 
 Only three variables are required:
