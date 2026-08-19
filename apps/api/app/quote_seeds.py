@@ -29,13 +29,18 @@ PEOPLE = [
 ]
 
 SOURCES = [
-    ("s_vivekananda_cw", "archive", "Complete Works of Swami Vivekananda",
-     "Advaita Ashrama", None, "1907", 0.85),
+    ("s_vivekananda_cw", "archive",
+     "Complete Works, Volume 1 — Raja-Yoga, 'Pratyahara and Dharana'",
+     "Advaita Ashrama",
+     "https://en.wikisource.org/wiki/The_Complete_Works_of_Swami_Vivekananda/Volume_1/Raja-Yoga/Pratyahara_And_Dharana",
+     "1907", 0.85),
     ("s_jobs_wwdc97", "talk", "Apple Worldwide Developers Conference, closing Q&A",
      "Apple", None, "1997", 0.9),
     ("s_feynman_caltech74", "speech", "Cargo Cult Science — Caltech commencement address",
-     "California Institute of Technology", None, "1974", 0.95),
-    ("s_hopper_cw76", "interview", "Interview in Computerworld",
+     "California Institute of Technology",
+     "https://calteches.library.caltech.edu/51/2/CargoCult.htm", "1974", 0.95),
+    ("s_hopper_cw76", "interview",
+     "\"Privacy Laws May Usher In 'Defensive DP'\" — Computerworld, 26 January 1976",
      "Computerworld", None, "1976", 0.8),
     ("s_child_memoir", "book", "My Life in France", "Knopf", None, "2006", 0.9),
     ("s_dyson_invention", "book", "Invention: A Life", "Simon & Schuster", None, "2021", 0.9),
@@ -54,9 +59,10 @@ SOURCES = [
 # themes are PRINCIPLES; professional_patterns map onto the resonance taxonomy
 QUOTES = [
     ("q_vivekananda_oneidea", "p_vivekananda", "s_vivekananda_cw",
-     "Take up one idea. Make that one idea your life; think of it, dream of it, "
-     "live on that idea. This is the way to success.",
-     "Addressing students on how concentrated effort produces results.",
+     "Take up one idea. Make that one idea your life — think of it, dream of it, "
+     "live on that idea. Let the brain, muscles, nerves, every part of your body, be "
+     "full of that idea, and just leave every other idea alone. This is the way to success.",
+     "From Raja-Yoga, on concentration ('Pratyahara and Dharana').",
      ["FOCUS", "DISCIPLINE"], ["domain_depth", "long_term_orientation"], 0.85),
     ("q_jobs_focus", "p_jobs", "s_jobs_wwdc97",
      "Focusing is about saying no.",
@@ -64,11 +70,11 @@ QUOTES = [
      ["FOCUS", "SIMPLICITY"], ["product_obsession", "long_term_orientation"], 0.9),
     ("q_feynman_fool", "p_feynman", "s_feynman_caltech74",
      "The first principle is that you must not fool yourself — and you are the "
-     "easiest person to fool.",
+     "easiest person to fool. So you have to be very careful about that.",
      "On the discipline that separates real science from its appearance.",
      ["LEARNING", "QUALITY"], ["technical_depth", "experimentation"], 0.95),
     ("q_hopper_always", "p_hopper", "s_hopper_cw76",
-     "The most damaging phrase in the language is: we've always done it this way.",
+     "The most dangerous phrase a DP manager can use is: we've always done it that way.",
      "On institutional resistance to new computing methods.",
      ["EXPERIMENTATION", "CONVICTION"], ["experimentation", "technical_depth"], 0.8),
     ("q_child_learning", "p_child", "s_child_memoir",
@@ -81,8 +87,9 @@ QUOTES = [
      "On developing the first bagless vacuum over five years.",
      ["PERSISTENCE", "EXPERIMENTATION"], ["experimentation", "long_term_orientation"], 0.9),
     ("q_chouinard_hands", "p_chouinard", "s_chouinard_book",
-     "I've always thought of myself as a craftsman more than a businessman.",
-     "On beginning by forging climbing gear he used himself.",
+     "I've been a businessman for almost fifty years. It's as difficult for me to "
+     "say those words as it is for someone to admit to being an alcoholic or a lawyer.",
+     "The opening line of his book, on becoming a businessman by way of the forge.",
      ["CRAFT", "OWNERSHIP"], ["builder_orientation", "product_obsession"], 0.85),
     ("q_wooden_activity", "p_wooden", "s_wooden_pyramid",
      "Never mistake activity for achievement.",

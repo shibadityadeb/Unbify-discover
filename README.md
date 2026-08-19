@@ -188,6 +188,10 @@ python3 scripts/verify_quotes.py list     # each quote with its cited source
 python3 scripts/verify_quotes.py verify <quote_id>
 ```
 
+Changing a quote's wording or source automatically resets it to
+`review_needed` — a sign-off applies to the text someone actually read, not to
+whatever replaces it.
+
 A person is never shown twice in one journey, themes are tracked to avoid a
 single principle dominating, and there is at most one quote moment per chapter
 — often none, because a forced quote is worse than no quote. Accomplishment

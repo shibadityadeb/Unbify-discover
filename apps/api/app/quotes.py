@@ -35,8 +35,6 @@ CHAPTER_THEME_BIAS = {
 
 def seed(db: Session) -> int:
     from . import quote_seeds as s
-    if db.query(QuoteRecord).count():
-        return 0
     for pid, name, field, descriptor, era in s.PEOPLE:
         if not db.get(QuotePerson, pid):
             db.add(QuotePerson(id=pid, name=name, field=field,
@@ -48,15 +46,25 @@ def seed(db: Session) -> int:
     db.flush()
     added = 0
     for qid, pid, sid, text, context, themes, patterns, quality in s.QUOTES:
-        if db.get(QuoteRecord, qid):
+        row = db.get(QuoteRecord, qid)
+        if row is None:
+            db.add(QuoteRecord(id=qid, person_id=pid, source_id=sid, quote_text=text,
+                               context=context, themes=themes,
+                               professional_patterns=patterns,
+                               # seeded UNVERIFIED on purpose: a human signs off
+                               # before anything is shown to a user
+                               verification_status="review_needed",
+                               evidence_quality=quality))
+            added += 1
             continue
-        db.add(QuoteRecord(id=qid, person_id=pid, source_id=sid, quote_text=text,
-                           context=context, themes=themes, professional_patterns=patterns,
-                           # seeded UNVERIFIED on purpose: a human signs off before
-                           # anything is shown to a user
-                           verification_status="review_needed",
-                           evidence_quality=quality))
-        added += 1
+        # Wording or source changed => any previous sign-off no longer applies.
+        # Someone verified the OLD text; they have not seen this one.
+        if row.quote_text != text or row.source_id != sid:
+            row.quote_text = text
+            row.source_id = sid
+            row.verification_status = "review_needed"
+        row.context, row.themes = context, themes
+        row.professional_patterns, row.evidence_quality = patterns, quality
     for rid, pattern, context, mechanisms, explanation, conf in s.PATTERN_VALUE:
         if not db.get(PatternValueRelationship, rid):
             db.add(PatternValueRelationship(id=rid, pattern=pattern, context=context,
