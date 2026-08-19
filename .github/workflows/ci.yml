@@ -123,14 +123,10 @@ jobs:
           fi
           echo "no secrets found"
 
-      - name: No Redis or external broker
-        # PostgreSQL is the operational backbone: jobs, locks, state.
-        run: |
-          if git grep -nIE "^\s*(import|from)\s+(redis|celery)\b|require\(['\"](redis|ioredis|bullmq)['\"]\)|redis://|^\s*image:\s*redis|^(redis|celery)[><=~]" \
-               -- . ':(exclude).github/workflows/ci.yml'; then
-            echo "::error::Redis/broker dependency reintroduced"; exit 1
-          fi
-          echo "no broker dependency"
+      # The "no Redis / no external broker" rule (PostgreSQL is the operational
+      # backbone) is enforced by test_no_redis_anywhere in the API job. Keeping
+      # a second copy of that regex here only made the guardrail match the test
+      # that implements it.
 
       - uses: actions/setup-python@v5
         with:
