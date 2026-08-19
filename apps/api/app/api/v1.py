@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from .. import orchestrator, statemachine
+from ..config import settings
 from ..db import get_db
 from ..events import emit
 from ..models import (AnonymousIdentity, DiscoverSession, Outcome,
@@ -94,17 +95,33 @@ def get_next(session_id: str, db: Session = Depends(get_db)):
 
 @router.post("/discover/sessions/{session_id}/responses")
 def submit(session_id: str, body: SubmitResponse, db: Session = Depends(get_db)):
+    """Idempotent: a retried or duplicated submission for an already-answered
+    interaction re-serves the current step instead of double-counting evidence,
+    advancing the chapter twice, or creating a second next interaction."""
+    from .. import latency
+    timer = latency.PhaseTimer()
     session = _get_session(db, session_id)
-    result = orchestrator.submit_response(db, session, body.interactionId, body.response, body.elapsedMs)
+    with timer.phase("persist"):
+        result = orchestrator.submit_response(db, session, body.interactionId,
+                                              body.response, body.elapsedMs)
     if not result.get("ok"):
         db.rollback()
         session = _get_session(db, session_id)
-        step = orchestrator.next_step(db, session)  # safely re-serve current step
+        with timer.phase("policy"):
+            step = orchestrator.next_step(db, session)   # safely re-serve current step
+        latency.record(db, session_id, "response", timer, {"duplicate": True})
         db.commit()
-        return {"sessionId": session.id, "stale": True, **step}
-    step = orchestrator.next_step(db, session)
+        return {"sessionId": session.id, "duplicate": True, "stale": True, **step}
+    with timer.phase("policy"):
+        step = orchestrator.next_step(db, session)
+    latency.record(db, session_id, "response", timer,
+                   {"type": step.get("interaction", {}).get("type")})
     db.commit()
-    return {"sessionId": session.id, **step}
+    out = {"sessionId": session.id, **step}
+    if not settings.is_production:
+        out["timings"] = {"phases": timer.phases, "totalMs": timer.total_ms(),
+                          "overBudget": timer.over_budget()}
+    return out
 
 
 @router.post("/discover/sessions/{session_id}/advance")
@@ -698,3 +715,16 @@ def intelligence_health(request: Request, db: Session = Depends(get_db)):
                          for d in db.query(DomainEnrichmentRequest)
                          .order_by(DomainEnrichmentRequest.priority.asc()).limit(15).all()],
     }
+
+
+@router.get("/debug/latency")
+def debug_latency(request: Request, kind: str | None = None, db: Session = Depends(get_db)):
+    """p50/p75/p95/p99 per phase — so a slow experience can be attributed to a
+    real phase rather than guessed at."""
+    if settings.is_production:
+        _internal_guard(request)
+    from .. import latency
+    return {"budgetsMs": latency.BUDGETS_MS,
+            "response": latency.percentiles(db, "response"),
+            "analysis": latency.percentiles(db, "analysis"),
+            **({"filtered": latency.percentiles(db, kind)} if kind else {})}
