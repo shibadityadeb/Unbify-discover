@@ -539,3 +539,68 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 .dx-evidence-note { font-family: var(--sans); font-size: 12px; color: #a98f5e; margin-top: 6px; }
 .dx-freshness { font-family: var(--sans); font-size: 10.5px; letter-spacing: .04em;
   color: #a98f5e; margin-top: 10px; }
+
+/* ============ perceived latency: acknowledgement, thinking, retry ============
+   Computation must never read as unresponsiveness — and must never pretend to
+   be narrative. Ambient motion for ordinary work; words only when earned. */
+
+/* the chosen thing settles; everything else softens (never looks disabled) */
+.dx-chosen {
+  transform: scale(1.015);
+  transition: transform .28s cubic-bezier(.2,.7,.3,1), box-shadow .28s ease, opacity .28s ease;
+  box-shadow: 0 0 0 1px rgba(163,118,47,.42), 0 6px 26px -12px rgba(120,86,30,.5);
+  opacity: 1 !important;
+}
+.dx-softened {
+  opacity: .34;
+  filter: saturate(.7);
+  transition: opacity .42s ease .06s, filter .42s ease .06s;
+}
+.dx-answered .dx-support, .dx-answered .dx-help { opacity: .5; transition: opacity .4s ease; }
+[aria-disabled="true"] { pointer-events: none; }
+
+/* screen memory: the answered scene recedes rather than blanking */
+.dx-scene.leaving { opacity: .16; transform: translateY(-6px) scale(.995); }
+
+/* thinking state — a slow breath of light, not a spinner */
+.dx-thinking {
+  position: fixed; left: 50%; bottom: 12vh; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  opacity: 0; transition: opacity .5s ease; pointer-events: none; z-index: 6;
+}
+.dx-thinking.ambient, .dx-thinking.with-text { opacity: 1; }
+.dx-thinking.out { opacity: 0; }
+.dx-thinking-pulse {
+  width: 44px; height: 1px; border-radius: 1px;
+  background: linear-gradient(90deg, transparent, #a3762f, transparent);
+  background-size: 220% 100%;
+  animation: dx-breathe 2.6s ease-in-out infinite;
+}
+@keyframes dx-breathe {
+  0%, 100% { background-position: 120% 0; opacity: .35; transform: scaleX(.72); }
+  50%      { background-position: -20% 0; opacity: .95; transform: scaleX(1); }
+}
+.dx-thinking-text {
+  font-family: var(--sans); font-size: 12.5px; letter-spacing: .04em;
+  color: #9d7f4d; text-align: center; max-width: 34ch; line-height: 1.5;
+  opacity: 0; transition: opacity .45s ease;
+}
+.dx-thinking.with-text .dx-thinking-text { opacity: 1; }
+
+/* honest failure — never leave someone inside a beautiful animation */
+.dx-retry { margin-top: 26px; text-align: center; }
+.dx-retry-text { font-family: var(--sans); font-size: 13px; color: #9d7f4d; margin-bottom: 14px; }
+.dx-scene.dx-failed { opacity: 1 !important; transform: none !important; }
+
+/* screen-reader-only live region */
+.dx-live {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dx-thinking-pulse { animation: none; opacity: .7; transform: none; }
+  .dx-chosen { transform: none; }
+  .dx-scene.leaving { transform: none; }
+  .dx-softened { transition-duration: .01s; }
+}

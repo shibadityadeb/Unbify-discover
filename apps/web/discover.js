@@ -6,6 +6,7 @@
   "use strict";
 
   const API = "/v1/discover";
+  const DEV = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
   const CHAPTER_LABELS = {
     SELF_DISCOVERY: "Chapter I · Self Discovery",
     SELF_DISCOVERY_CLOSING: "Chapter I · Self Discovery",
@@ -41,7 +42,8 @@
       <p class="dx-chapter"></p>
       <div class="dx-thread"></div>
       <div class="dx-stage"></div>
-      <div class="dx-progress"></div>`;
+      <div class="dx-progress"></div>
+      <p class="dx-live" role="status" aria-live="polite" aria-atomic="true"></p>`;
     document.body.appendChild(root);
     stage = root.querySelector(".dx-stage");
     chapterEl = root.querySelector(".dx-chapter");
@@ -50,14 +52,22 @@
     threadEl = root.querySelector(".dx-thread");
   }
 
-  async function api(path, body, method) {
-    const res = await fetch(API + path, {
-      method: method || "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    if (!res.ok) throw new Error("api " + res.status);
-    return res.json();
+  async function api(path, body, opts) {
+    const { method, timeoutMs } = opts || {};
+    const controller = timeoutMs ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const res = await fetch(API + path, {
+        method: method || "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller ? controller.signal : undefined,
+      });
+      if (!res.ok) throw new Error("api " + res.status);
+      return res.json();
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   const CHAPTER_STATES = {
@@ -92,27 +102,184 @@
 
   let respondRef = null;
 
-  async function respond(interactionId, response) {
-    if (respondRef) { const fn = respondRef; respondRef = null; return fn(interactionId, response); }
-    return respondMain(interactionId, response);
+  async function respond(interactionId, response, chosenEl) {
+    if (respondRef) { const fn = respondRef; respondRef = null; return fn(interactionId, response, chosenEl); }
+    return respondMain(interactionId, response, chosenEl);
   }
 
-  async function respondMain(interactionId, response) {
+  /* ---------------- perceived latency ----------------
+     Computation must never look like unresponsiveness. The selection is
+     acknowledged locally within a frame, the leave choreography starts
+     immediately, and the network request runs alongside it — so animation
+     time and network time overlap instead of queueing. */
+
+  const REDUCED_MOTION = window.matchMedia
+    ? window.matchMedia("(prefers-reduced-motion: reduce)").matches : false;
+
+  /* latency tiers: below FAST nothing is said, and each escalation must stay
+     on screen long enough to actually be read */
+  const TIER_NORMAL_MS = 500;      /* ambient motion only, no words          */
+  const TIER_NOTICEABLE_MS = 2000; /* one honest, event-derived line         */
+  const TIER_LONG_MS = 5000;       /* explicit transparency                  */
+  const THINKING_MIN_VISIBLE_MS = 900;
+  const REQUEST_TIMEOUT_MS = 30000;
+
+  let thinking = null;
+
+  function announce(message) {
+    const live = root.querySelector(".dx-live");
+    if (live && message) live.textContent = message;
+  }
+
+  function startThinking() {
+    stopThinking();
+    const el = document.createElement("div");
+    el.className = "dx-thinking";
+    el.innerHTML = `<span class="dx-thinking-pulse" aria-hidden="true"></span>
+                    <p class="dx-thinking-text"></p>`;
+    root.appendChild(el);
+    const state = { el, shownTextAt: 0, timers: [], done: false };
+    thinking = state;
+
+    /* NORMAL: ambient motion only — the screen is alive, nothing is claimed */
+    state.timers.push(setTimeout(() => {
+      if (!state.done) el.classList.add("ambient");
+    }, TIER_NORMAL_MS));
+
+    /* NOTICEABLE: acknowledge that work is happening, in plain language */
+    state.timers.push(setTimeout(() => {
+      if (state.done) return;
+      setThinkingText(state, "Working through that…");
+    }, TIER_NOTICEABLE_MS));
+
+    /* LONG: be transparent rather than leaving someone inside an animation */
+    state.timers.push(setTimeout(() => {
+      if (state.done) return;
+      setThinkingText(state, "This one's taking a little longer. We're checking what your answer changes.");
+    }, TIER_LONG_MS));
+    return state;
+  }
+
+  function setThinkingText(state, text) {
+    if (!state || state.done) return;
+    const p = state.el.querySelector(".dx-thinking-text");
+    if (!p || p.textContent === text) return;
+    p.textContent = text;
+    state.el.classList.add("with-text");
+    state.shownTextAt = Date.now();
+    announce(text);
+  }
+
+  /* the backend says what actually changed; we only borrow those words when
+     something real changed, which is what keeps them meaningful */
+  function noteChange(state, processing) {
+    if (!state || !processing || !processing.changed || !processing.note) return;
+    if (Date.now() - state.startedAt < TIER_NOTICEABLE_MS) return;
+    setThinkingText(state, processing.note);
+  }
+
+  function stopThinking() {
+    if (!thinking) return Promise.resolve();
+    const state = thinking;
+    thinking = null;
+    state.done = true;
+    state.timers.forEach(clearTimeout);
+    const shownFor = state.shownTextAt ? Date.now() - state.shownTextAt : Infinity;
+    const wait = state.shownTextAt && shownFor < THINKING_MIN_VISIBLE_MS
+      ? THINKING_MIN_VISIBLE_MS - shownFor : 0;
+    return new Promise(resolve => setTimeout(() => {
+      state.el.classList.add("out");
+      setTimeout(() => state.el.remove(), 320);
+      resolve();
+    }, wait));
+  }
+
+  /* acknowledge within a frame: the chosen thing settles, the rest softens */
+  function acknowledgeSelection(chosenEl) {
+    const scene = stage.firstElementChild;
+    if (!scene) return;
+    scene.classList.add("dx-answered");
+    if (chosenEl) chosenEl.classList.add("dx-chosen");
+    scene.querySelectorAll(
+      ".dx-option, .dx-opt, .dx-chip, .dx-cal-opt, .dx-pill, button.dx-choice"
+    ).forEach(el => {
+      if (el !== chosenEl) el.classList.add("dx-softened");
+      el.setAttribute("aria-disabled", "true");
+      el.tabIndex = -1;
+    });
+  }
+
+  function showRetry(interactionId, response, chosenEl) {
+    const scene = stage.firstElementChild;
+    if (!scene) return;
+    const box = document.createElement("div");
+    box.className = "dx-retry";
+    box.innerHTML = `<p class="dx-retry-text">That didn't go through.</p>`;
+    const again = document.createElement("button");
+    again.className = "dx-commit ready";
+    again.textContent = "Try again";
+    again.addEventListener("click", () => {
+      box.remove();
+      scene.classList.remove("dx-failed");
+      respondMain(interactionId, response, chosenEl);   /* answer is preserved */
+    }, { once: true });
+    box.appendChild(again);
+    scene.classList.add("dx-failed");
+    scene.appendChild(box);
+    announce("That didn't go through. Try again.");
+    again.focus({ preventScroll: true });
+  }
+
+  async function respondMain(interactionId, response, chosenEl) {
     if (busy) return;
     busy = true;
+    const marks = { tap: performance.now() };
     clearTimeout(assistTimer);
     root.querySelector(".dx-assist")?.remove();
     if (helpUsed && response && !response.helpUsed) response.helpUsed = true;
     const elapsedMs = Date.now() - shownAt;
+
+    /* 1. instant local acknowledgement — no backend confirmation needed */
+    acknowledgeSelection(chosenEl);
+    marks.acknowledged = performance.now();
+
+    /* 2. leave choreography and the request start together */
+    const state = startThinking();
+    state.startedAt = Date.now();
+    const leaving = REDUCED_MOTION ? Promise.resolve() : leaveScene({ keepMemory: true });
+    const request = api(`/sessions/${sessionId}/responses`,
+                        { interactionId, response, elapsedMs },
+                        { timeoutMs: REQUEST_TIMEOUT_MS });
+
     try {
-      const data = await api(`/sessions/${sessionId}/responses`, { interactionId, response, elapsedMs });
-      await leaveScene();
+      const data = await request;
+      marks.responded = performance.now();
+      noteChange(state, data.processing);
+      await leaving;
+      await stopThinking();
+      clearStage();
       handlePayload(data);
+      marks.painted = performance.now();
+      logTimeline(marks, data);
     } catch (e) {
+      await stopThinking();
       console.error(e);
+      showRetry(interactionId, response, chosenEl);
     } finally {
       busy = false;
     }
+  }
+
+  function logTimeline(marks, data) {
+    if (!DEV) return;
+    const ms = (a, b) => Math.round(marks[b] - marks[a]);
+    console.info("[discover] latency", {
+      acknowledgement: ms("tap", "acknowledged") + "ms",
+      network: ms("acknowledged", "responded") + "ms",
+      render: ms("responded", "painted") + "ms",
+      perceived: ms("tap", "painted") + "ms",
+      server: data && data.timings ? data.timings : undefined,
+    });
   }
 
   const CHAPTER_ORDER = ["SELF_DISCOVERY", "REFLECTION", "ALIGNMENT", "TRANSFORMATION"];
@@ -410,7 +577,7 @@
     });
     const skipBtn = document.createElement("button");
     skipBtn.textContent = "Skip this";
-    skipBtn.addEventListener("click", () => { bar.remove(); respond(it.id, { skipped: true, helpUsed }); });
+    skipBtn.addEventListener("click", () => { bar.remove(); respond(it.id, { skipped: true, helpUsed }, skipBtn); });
     bar.appendChild(helpBtn);
     bar.appendChild(skipBtn);
     root.appendChild(bar);
@@ -690,13 +857,23 @@
     }
   }
 
-  function leaveScene() {
+  function leaveScene(opts) {
+    const { keepMemory = false } = opts || {};
     return new Promise(resolve => {
       const scene = stage.firstElementChild;
       if (!scene) return resolve();
       scene.classList.add("leaving");
-      setTimeout(() => { stage.innerHTML = ""; resolve(); }, 520);
+      setTimeout(() => {
+        /* keepMemory: the answer stays on screen while the backend works, so
+           processing has context instead of a blank page */
+        if (!keepMemory) stage.innerHTML = "";
+        resolve();
+      }, 520);
     });
+  }
+
+  function clearStage() {
+    stage.innerHTML = "";
   }
 
   function newScene() {
@@ -771,7 +948,7 @@
       b.innerHTML = `<span class="art m-${o.motif || "path"}"></span><span class="lbl">${esc(o.label)}</span>`;
       b.addEventListener("click", () => {
         b.classList.add("picked");
-        setTimeout(() => respond(it.id, { optionId: o.id }), 420);
+        setTimeout(() => respond(it.id, { optionId: o.id }, card), 420);
       });
       row.appendChild(b);
     });
@@ -789,7 +966,7 @@
       setTimeout(() => b.classList.add("in"), (it.bridge ? 1300 : 500) + i * 160);
       b.addEventListener("click", () => {
         b.classList.add("picked");
-        setTimeout(() => respond(it.id, { optionId: o.id }), 380);
+        setTimeout(() => respond(it.id, { optionId: o.id }, b), 380);
       });
       wrap.appendChild(b);
     });
@@ -838,7 +1015,7 @@
     track.addEventListener("pointerdown", start);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
-    commit.addEventListener("click", () => respond(it.id, { value }));
+    commit.addEventListener("click", () => respond(it.id, { value }, commit));
     setValue(0);
   }
 
@@ -872,7 +1049,7 @@
     scene.appendChild(keep);
     scene.appendChild(commit);
     sync();
-    commit.addEventListener("click", () => respond(it.id, { optionIds: [...held] }));
+    commit.addEventListener("click", () => respond(it.id, { optionIds: [...held] }, commit));
   }
 
   function renderReflection(scene, it) {
@@ -895,9 +1072,9 @@
     skip.textContent = "Rather not say";
     scene.appendChild(skip);
     input.addEventListener("input", () => commit.classList.toggle("ready", input.value.trim().length > 2));
-    input.addEventListener("keydown", e => { if (e.key === "Enter" && input.value.trim().length > 2) respond(it.id, { text: input.value.trim() }); });
-    commit.addEventListener("click", () => respond(it.id, { text: input.value.trim() }));
-    skip.addEventListener("click", () => respond(it.id, { skipped: true }));
+    input.addEventListener("keydown", e => { if (e.key === "Enter" && input.value.trim().length > 2) respond(it.id, { text: input.value.trim() }, commit); });
+    commit.addEventListener("click", () => respond(it.id, { text: input.value.trim() }, commit));
+    skip.addEventListener("click", () => respond(it.id, { skipped: true }, skip));
     setTimeout(() => input.focus({ preventScroll: true }), 900);
   }
 
@@ -927,7 +1104,7 @@
       b.textContent = c.label;
       b.addEventListener("click", () => {
         b.classList.add("picked");
-        setTimeout(() => respond(it.id, { optionId: c.id }), 350);
+        setTimeout(() => respond(it.id, { optionId: c.id }, b), 350);
       });
       calib.appendChild(b);
     });
@@ -970,7 +1147,7 @@
       b.addEventListener("click", () => {
         b.classList.add("picked");
         row.querySelectorAll(".dx-life").forEach(c => c.classList.toggle("picked", c.dataset.key === o.id));
-        setTimeout(() => respond(it.id, { optionId: o.id }), 500);
+        setTimeout(() => respond(it.id, { optionId: o.id }, b), 500);
       });
       pills.appendChild(b);
     });
@@ -1015,7 +1192,7 @@
     done.addEventListener("click", () => {
       io.disconnect();
       stage.classList.remove("dx-scroll");
-      respond(it.id, { done: true });
+      respond(it.id, { done: true }, done);
     }, { once: true });
   }
 

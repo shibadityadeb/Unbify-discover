@@ -262,6 +262,7 @@ def submit_response(db: Session, session: DiscoverSession, instance_id: str,
 
     counters = dict(session.counters or {})
     counters["chapter_interactions"] = counters.get("chapter_interactions", 0) + 1
+    counters["_answers_total"] = counters.get("_answers_total", 0) + 1
     recent = list(session.recent_interaction_types or [])
     recent.append(inst.type)
     session.recent_interaction_types = recent[-10:]
@@ -310,6 +311,8 @@ def submit_response(db: Session, session: DiscoverSession, instance_id: str,
         # PROCESS RESPONSE → UPDATE FACTS → EVIDENCE → HYPOTHESES → …
         changes = knowledge.sync_hypotheses(db, session, trigger=f"response:{inst.type}")
         counters["_last_hypothesis_changes"] = changes[-6:]
+        counters["_last_change"] = _describe_change(session, counters, changes,
+                                                    pre_contradictions, pre_status_known)
     else:
         counters["since_reveal"] = counters.get("since_reveal", 0) + 1
     pending = interpretation.pending_clarification(db, session)
@@ -335,7 +338,9 @@ def _apply_typed_response(db, session, inst, response, counters):
         counters["since_reveal"] = counters.get("since_reveal", 0) + 1
 
     elif itype in ("binary_tension", "spectrum"):
-        v = max(-1.0, min(1.0, float(payload.get("value", 0))))
+        # a client may legitimately send null/absent/garbage here; a malformed
+        # payload must never 500 the response endpoint
+        v = max(-1.0, min(1.0, _as_float(payload.get("value"))))
         ev = []
         left, right = c.get("left", {}), c.get("right", {})
         if left.get("dim"):
@@ -458,6 +463,13 @@ def _apply_typed_response(db, session, inst, response, counters):
     elif itype == "final":
         statemachine.advance(session, "TRANSFORMATION_CLOSING")
         emit(db, session.id, "chapter.completed", {"chapter": "TRANSFORMATION"})
+
+
+def _as_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _definition_field(inst, field: str):
@@ -721,6 +733,60 @@ def _story_close_payload(session) -> dict:
             "next": "MATERIALIZATION"}
 
 
+# Internal machine phases map to a SMALL set of safe user-facing hints. The
+# client never sees technical terms, and "changed" is only ever true when a
+# real state change occurred — that keeps the words meaningful (§5/§6).
+CHANGE_KINDS = {
+    "contradiction_appeared": "Two of your answers just disagreed.",
+    "hypothesis_revised": "That answer changed something.",
+    "correction_taken": "Taking your correction — re-reading the earlier answers.",
+    "fact_learned": "Noting that — it changes what's worth asking.",
+}
+
+
+# these words only keep their force if they are rare, so a change hint needs a
+# genuinely notable event AND breathing room since the last one (§6)
+CHANGE_MIN_GAP_INTERACTIONS = 5
+
+
+def _describe_change(session, counters: dict, hypothesis_changes: list,
+                     pre_contradictions: int, pre_status_known: bool) -> dict:
+    """What meaningfully changed while processing this answer.
+
+    Ordinary confidence drift is NOT a change worth announcing — almost every
+    early answer moves a hypothesis a little. Only a status transition, a new
+    contradiction, an explicit correction, or a newly-learned fact qualifies.
+    """
+    silent = {"changed": False, "kind": None, "note": None}
+    if len(session.contradictions or []) > pre_contradictions:
+        kind = "contradiction_appeared"
+    elif any(c.get("to", {}).get("status") in ("corrected", "contradicted")
+             and c.get("from", {}).get("status") not in ("corrected", "contradicted")
+             for c in hypothesis_changes):
+        kind = "correction_taken"
+    elif not pre_status_known and "current_status" in (session.practical_context or {}):
+        kind = "fact_learned"
+    elif any(c.get("from", {}).get("status") not in (None, "supported")
+             and c.get("to", {}).get("status") == "supported"
+             for c in hypothesis_changes):
+        kind = "hypothesis_revised"     # a hypothesis actually became supported
+    else:
+        return silent
+
+    # a session-lifetime counter: chapter_interactions resets at every chapter
+    # boundary, which would silently reopen the gate mid-journey
+    answered = counters.get("_answers_total", 0)
+    last = counters.get("_last_change_at")
+    if last is not None and answered - last < CHANGE_MIN_GAP_INTERACTIONS:
+        return silent                    # real, but too soon to say again
+    if kind == counters.get("_last_change_kind"):
+        return silent                    # never the same phrase twice running
+    # written into the caller's counters dict: submit_response owns persistence
+    counters["_last_change_at"] = answered
+    counters["_last_change_kind"] = kind
+    return {"changed": True, "kind": kind, "note": CHANGE_KINDS[kind]}
+
+
 def _envelope(session, interaction: dict) -> dict:
     order = ["PROLOGUE", "SELF_DISCOVERY", "SELF_DISCOVERY_CLOSING", "REFLECTION", "REFLECTION_CLOSING",
              "ALIGNMENT", "ALIGNMENT_CLOSING", "TRANSFORMATION", "TRANSFORMATION_CLOSING",
@@ -728,9 +794,12 @@ def _envelope(session, interaction: dict) -> dict:
     idx = order.index(session.journey_status)
     within = min(1.0, (session.counters or {}).get("chapter_interactions", 0) / 8)
     progress = min(0.98, (idx + within) / len(order))
+    counters = dict(session.counters or {})
+    change = counters.pop("_last_change", None) or {"changed": False, "kind": None, "note": None}
+    session.counters = counters          # consumed: never repeat a change hint
     return {"interaction": interaction, "state": session.journey_status,
             "chapter": session.journey_status, "estimatedProgress": round(progress, 3),
-            "fragments": _fragments(session)}
+            "fragments": _fragments(session), "processing": change}
 
 
 def new_session_defaults() -> dict:
