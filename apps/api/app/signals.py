@@ -66,8 +66,23 @@ def apply_evidence(
         )
         db.add(row)
         rows.append(row)
+        # evidence ledger: every meaningful interpretation traces back here
+        from . import knowledge
+        from .dimensions import dim_fragment
+        pieces = [f"chose toward {dim_fragment(d, delta)}" for d, delta in list(updates.items())[:3]]
+        knowledge.record_evidence(
+            db, session, knowledge.kind_for_source(source),
+            f"[{source}] " + "; ".join(pieces),
+            dims=[{"dim": d, "delta": delta} for d, delta in updates.items()],
+            strength=sum(weights) / len(weights), source_interaction_id=instance_id)
+    pre_contradictions = len(session.contradictions or [])
     session.dimensions = dims
     _detect_contradictions(session)
+    if len(session.contradictions or []) > pre_contradictions:
+        from . import knowledge
+        new_c = (session.contradictions or [])[-1]
+        knowledge.emit_event(db, session, "CONTRADICTION_APPEARED",
+                             {"dim": new_c.get("dim")}, importance=0.8)
     return rows
 
 

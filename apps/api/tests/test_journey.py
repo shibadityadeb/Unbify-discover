@@ -36,8 +36,8 @@ def test_full_journey(client):
         if it["type"] in ("chapter_transition", "chapter_closing"):
             data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": it["next"]}).json()
             continue
-        if it["type"] == "story_close":
-            data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "DISCOVER_WORKSPACE"}).json()
+        if it["type"] in ("story_close", "materialization"):
+            data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": it["next"]}).json()
             continue
         resp = drive_response(it)
         data = client.post(f"/v1/discover/sessions/{sid}/responses",

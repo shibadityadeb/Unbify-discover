@@ -9,6 +9,7 @@ STATES = [
     "ALIGNMENT", "ALIGNMENT_CLOSING",
     "TRANSFORMATION", "TRANSFORMATION_CLOSING",
     "STORY_COMPLETE",
+    "MATERIALIZATION",
     "DISCOVER_WORKSPACE",
 ]
 
@@ -25,7 +26,11 @@ TRANSITIONS: dict[str, list[str]] = {
     "ALIGNMENT_CLOSING": ["TRANSFORMATION"],
     "TRANSFORMATION": ["TRANSFORMATION_CLOSING"],
     "TRANSFORMATION_CLOSING": ["STORY_COMPLETE"],
-    "STORY_COMPLETE": ["DISCOVER_WORKSPACE"],
+    # the four-chapter STORY ends at STORY_COMPLETE. MATERIALIZATION is not a
+    # fifth chapter — it is the bridge from understanding to utility, and only
+    # an explicit user continue crosses it.
+    "STORY_COMPLETE": ["MATERIALIZATION"],
+    "MATERIALIZATION": ["DISCOVER_WORKSPACE"],
     "DISCOVER_WORKSPACE": [],
 }
 

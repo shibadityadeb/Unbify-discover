@@ -70,8 +70,10 @@ def heuristic_extract(text: str) -> dict:
         facts["freelance_experience"] = True
     if any(w in t for w in ("founder", "my company", "my startup", "my business", "co-founder")):
         facts["current_status"] = facts.get("current_status") or "founder"
-    if any(w in t for w in ("i manage", "i lead", "my team")):
+    if any(w in t for w in ("my team", "team of", "direct reports", "manage a team",
+                            "manage people", "i lead a team")):
         facts["management_exposure"] = True
+    # bare "I manage <software things>" is ambiguous — never a management fact
     for domain, words in DOMAIN_KEYWORDS.items():
         if any(w in t for w in words):
             facts["domain"] = domain

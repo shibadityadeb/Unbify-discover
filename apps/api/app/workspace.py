@@ -128,10 +128,29 @@ def profile_clarity(session: DiscoverSession) -> str:
 
 # ---------------- actions (intelligence-generated) ----------------
 
+def _facts_fingerprint(session: DiscoverSession) -> str:
+    import hashlib, json as _json
+    pc = session.practical_context or {}
+    basis = {k: v for k, v in pc.items() if not k.startswith("_") and k not in ("notes",)}
+    return hashlib.sha256(_json.dumps(basis, sort_keys=True, default=str).encode()).hexdigest()[:16]
+
+
 def _latest_lives(db: Session, session: DiscoverSession, refresh: bool = False) -> list[dict]:
+    # opportunities change when evidence changes: a map cached before new
+    # professional facts arrived must not be silently re-served (new snapshot
+    # instead — old snapshots stay persisted, never mutated)
+    pc0 = session.practical_context or {}
+    if pc0.get("_lives") and pc0.get("_lives_fingerprint") != _facts_fingerprint(session):
+        refresh = True
     if refresh or not (session.practical_context or {}).get("_lives"):
-        candidates = retrieve_candidates(db, session)
-        rec_set = rank_and_persist(db, session, candidates)
+        from .config import settings as _settings
+        rec_set = None
+        if _settings.world_intelligence_enabled:
+            from .world.matching import recommend as world_recommend
+            rec_set = world_recommend(db, session)
+        if rec_set is None:
+            candidates = retrieve_candidates(db, session)
+            rec_set = rank_and_persist(db, session, candidates)
         items = (db.query(RecommendationItem).filter_by(set_id=rec_set.id)
                  .order_by(RecommendationItem.rank).all())
         lives = []
@@ -140,19 +159,30 @@ def _latest_lives(db: Session, session: DiscoverSession, refresh: bool = False) 
             lives.append(_life_payload(opp, item))
         pc = dict(session.practical_context or {})
         pc["_lives"] = lives
+        pc["_lives_fingerprint"] = _facts_fingerprint(session)
         session.practical_context = pc
     return (session.practical_context or {}).get("_lives", [])
 
 
 def _life_payload(opp: Opportunity, item: RecommendationItem) -> dict:
     factors = item.factor_contributions or {}
+    narrative = item.narrative or {}
+    # world-engine recommendations carry evidence-honest narrative fields;
+    # catalog fallbacks derive whyYou from their fit factors as before
+    why_you = narrative.get("whyYou") or _factors_to_why(factors)
+    freshness = narrative.get("freshnessDays")
     return {
         "key": opp.id, "name": opp.title, "essence": opp.value_proposition,
         "pathway": opp.pathway_type,
-        "whyYou": _factors_to_why(factors),
+        "whyYou": why_you,
+        "whyNow": narrative.get("whyNow") or opp.description or "No strong timing signal yet.",
+        "friction": narrative.get("friction"),
         "requires": ", ".join(opp.skill_gaps) or "focused first steps",
         "risk": opp.risk_profile, "timeToValue": opp.time_to_first_value,
         "confidence": max(35, min(85, int(50 + item.score * 40))),
+        "confidenceLabel": narrative.get("confidenceLabel"),
+        "evidenceFreshness": (f"market evidence refreshed {freshness}d ago"
+                              if isinstance(freshness, int) else None),
         "whyThis": [{"factor": k.replace("fit:", "").replace("_", " "), "value": round(v, 2)}
                     for k, v in sorted(factors.items(), key=lambda kv: -abs(kv[1]))
                     if not k.startswith("_")][:5],
@@ -190,9 +220,68 @@ def available_actions(session: DiscoverSession) -> list[dict]:
         actions.append({"id": "expertise_income", "label": "Turn my expertise into income", "hint": "Consulting and service leverage"})
     if est("implementation_affinity") > 0.15 or est("originality") > 0.2:
         actions.append({"id": "build", "label": "Build something", "hint": "Builder-path possibilities"})
+    actions.append({"id": "whats_changing", "label": "See what's changing in my field",
+                    "hint": "Current evidence, checked now"})
+    actions.append({"id": "transfer", "label": "Where my experience transfers",
+                    "hint": "Capability overlap against the live map"})
+    if (session.practical_context or {}).get("commercial_evidence") or \
+            (session.practical_context or {}).get("freelance_experience"):
+        actions.append({"id": "independent_paths", "label": "Look for independent paths",
+                        "hint": "Contracting, services, practice"})
     actions.append({"id": "ai_leverage", "label": "AI leverage", "hint": "Multiply what you already do"})
     actions.append({"id": "compare", "label": "Compare paths", "hint": "Two futures, side by side"})
     return actions
+
+
+# actions whose value depends on CURRENT world evidence go through the
+# real-time pipeline: freshness check → targeted refresh if needed → rerank
+LIVE_ACTIONS = {
+    "whats_changing": ("whats_changing", "What's changing in your field"),
+    "active_now": ("active_now", "What the market is rewarding right now"),
+    "transfer": ("transfer", "Where your experience transfers"),
+    "independent_paths": ("independent_work", "Independent paths worth examining"),
+}
+
+
+def live_analysis(db: Session, session: DiscoverSession, action_id: str) -> dict:
+    from .world.analysis import analyze
+    intent, headline = LIVE_ACTIONS[action_id]
+    out = analyze(db, session, intent)
+    fresh = out["marketFreshness"]
+    refreshing = out["status"] == "refreshing"
+    return {
+        "kind": "live_map",
+        "headline": headline,
+        "supportingText": ("Checking the current landscape — showing what we already have "
+                           "while that finishes." if refreshing else
+                           "Computed just now from your latest profile and current evidence."),
+        "status": out["status"],
+        "refreshId": out.get("refreshId"),
+        "lives": [_direction_to_life(d) for d in out["analysis"]["directions"]],
+        "marketFreshness": fresh,
+        "evidenceNote": out["analysis"].get("worldEvidenceNote"),
+        "changeSummary": out["analysis"].get("changeSummary"),
+        "versions": out["versions"],
+    }
+
+
+def _direction_to_life(d: dict) -> dict:
+    return {
+        "key": d["key"], "name": d["label"], "pathway": d.get("pathway"),
+        "essence": d.get("whyThisAppeared", ""),
+        "whyYou": d.get("whyThisAppeared", ""),
+        "whyNow": d.get("marketEvidence", "No strong timing signal yet."),
+        "friction": d.get("whatMakesItRisky"),
+        "requires": ", ".join(d.get("missing") or []) or "focused first steps",
+        "risk": "medium", "timeToValue": "varies",
+        "confidence": 55, "confidenceLabel": d.get("confidenceLabel"),
+        "evidenceFreshness": (f"market evidence refreshed {d['evidenceFreshness']}d ago"
+                              if isinstance(d.get("evidenceFreshness"), int) else None),
+        "whyThis": [{"factor": k.replace("_", " "), "value": round(v, 2)}
+                    for k, v in list((d.get("rankingFactors") or {}).items())[:5]],
+        "firstExperiment": (d.get("experiment") or {}).get("action", ""),
+        "skillGaps": d.get("missing") or [],
+    }
 
 
 def action_content(db: Session, session: DiscoverSession, action_id: str) -> dict:
@@ -228,6 +317,8 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
             items.append(f"Still unknown — we have little evidence on {dim_phrase(unknown[0][0], 1)}; we'd rather ask than guess.")
         return {"kind": "list", "headline": "Your professional position", "items": items,
                 "note": "Analysis, not a verdict — it updates as your evidence does."}
+    if action_id in LIVE_ACTIONS:
+        return live_analysis(db, session, action_id)
     if action_id == "explore":
         return {"kind": "map", "headline": "Your Opportunity Map",
                 "supportingText": "Three credible futures — explainable, none of them destiny.",
@@ -291,17 +382,90 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
             "note": ""}
 
 
+def _question_invite(db: Session, session: DiscoverSession, pending: list[dict]) -> str:
+    """A question earns its place by naming what it would change (§22/§23) —
+    never 'Question 19'."""
+    if not pending:
+        return "Nothing pressing to ask right now. New questions appear as your evidence changes."
+    from .models import MaterialObject
+    blocking = (db.query(MaterialObject)
+                .filter_by(session_id=session.id, kind="gap")
+                .order_by(MaterialObject.created_at.asc()).all())
+    for gap in blocking:
+        blocks = (gap.detail or {}).get("blocks")
+        if blocks:
+            return (f"One answer would change whether {blocks} is realistically worth "
+                    f"exploring — {(gap.detail or {}).get('why', 'it decides the ranking')}.")
+    if blocking:
+        g = blocking[0]
+        return (f"The most useful thing you could tell us next: {g.label} — "
+                f"{(g.detail or {}).get('why', 'it sharpens everything downstream')}.")
+    return (f"{len(pending)} answers would materially sharpen which directions are "
+            "realistic for you.")
+
+
 def workspace_summary(db: Session, session: DiscoverSession) -> dict:
     pending = pending_questions(session)
+    actions = available_actions(session)
+    ranked = rank_actions(db, session, actions)
     return {
         "type": "workspace",
         "headline": "My UNBIFY",
         "clarity": profile_clarity(session),
         "questions": {
             "available": len(pending),
-            "invite": (f"We already understand quite a bit. {len(pending)} answers would make "
-                       f"your opportunities much sharper.") if pending else
-                      "Nothing pressing to ask right now. New questions appear as your profile evolves.",
+            "invite": _question_invite(db, session, pending),
         },
-        "actions": available_actions(session),
+        "actions": ranked,
+        "mostUseful": (ranked[0]["id"] if ranked else None),
+        "saved": len([o for o in _saved(db, session)]),
     }
+
+
+def _saved(db: Session, session: DiscoverSession) -> list:
+    from .models import MaterialObject
+    return (db.query(MaterialObject)
+            .filter(MaterialObject.session_id == session.id,
+                    MaterialObject.saved.is_(True)).all())
+
+
+# §25: actions themselves are ranked — the top one is "most useful right now",
+# never "the objectively correct action"
+ACTION_PRIORS = {
+    "whats_changing": {"value": 0.8, "effort": 0.15},
+    "transfer": {"value": 0.75, "effort": 0.15},
+    "independent_paths": {"value": 0.7, "effort": 0.2},
+    "explore": {"value": 0.9, "effort": 0.1}, "position": {"value": 0.8, "effort": 0.15},
+    "test_direction": {"value": 0.85, "effort": 0.3}, "next_move": {"value": 0.7, "effort": 0.15},
+    "gaps": {"value": 0.65, "effort": 0.1}, "build": {"value": 0.6, "effort": 0.35},
+    "improve": {"value": 0.6, "effort": 0.2}, "expertise_income": {"value": 0.65, "effort": 0.3},
+    "ai_leverage": {"value": 0.5, "effort": 0.2}, "compare": {"value": 0.55, "effort": 0.25},
+}
+
+
+def rank_actions(db: Session, session: DiscoverSession, actions: list[dict]) -> list[dict]:
+    from .models import MaterialObject
+    objs = db.query(MaterialObject).filter_by(session_id=session.id).all()
+    has_directions = any(o.kind == "direction" for o in objs)
+    testing = any(o.kind == "direction" and o.status in ("testing", "active") for o in objs)
+    open_gaps = len([o for o in objs if o.kind == "gap"])
+    clarity = profile_clarity(session)
+    out = []
+    for a in actions:
+        prior = ACTION_PRIORS.get(a["id"], {"value": 0.5, "effort": 0.25})
+        relevance = 1.0
+        if a["id"] == "explore" and has_directions:
+            relevance = 1.2                      # the map already exists — cheap to open
+        if a["id"] == "test_direction":
+            relevance = 1.3 if (has_directions and not testing) else 0.6
+        if a["id"] == "gaps":
+            relevance = 1.0 + 0.06 * min(4, open_gaps)
+        if a["id"] == "position" and clarity in ("Early", "Developing"):
+            relevance = 1.15
+        score = prior["value"] * relevance - prior["effort"]
+        out.append({**a, "score": round(score, 3)})
+    out.sort(key=lambda x: -x["score"])
+    if out:
+        out[0] = {**out[0], "mostUsefulNow": True,
+                  "note": "Most useful right now — not the only right move."}
+    return out

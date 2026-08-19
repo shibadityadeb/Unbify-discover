@@ -19,7 +19,11 @@ def _load_dotenv() -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip())
+        value = value.strip()
+        # values may be quoted in .env files — the quotes are syntax, not data
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("\"", "'"):
+            value = value[1:-1]
+        os.environ.setdefault(key.strip(), value)
 
 
 _load_dotenv()
@@ -29,12 +33,19 @@ _load_dotenv()
 class Settings:
     app_env: str = field(default_factory=lambda: os.environ.get("APP_ENV", "development"))
     database_url: str = field(default_factory=lambda: os.environ.get("DATABASE_URL", ""))
-    redis_url: str = field(default_factory=lambda: os.environ.get("REDIS_URL", ""))
     litellm_key: str = field(default_factory=lambda: os.environ.get("LITELLM_KEY", ""))
     litellm_base_url: str = "https://litellm.gtor.app/v1"
     litellm_model: str = "gpt-5.6-luna"
     session_secret: str = field(default_factory=lambda: os.environ.get("SESSION_SECRET", "dev-only-secret"))
     app_url: str = field(default_factory=lambda: os.environ.get("APP_URL", "http://localhost:8000"))
+    apify_token: str = field(default_factory=lambda: os.environ.get("APIFY_TOKEN", ""))
+    apify_webhook_secret: str = field(default_factory=lambda: os.environ.get("APIFY_WEBHOOK_SECRET", ""))
+    # world-intelligence feature flags
+    world_intelligence_enabled: bool = field(default_factory=lambda: os.environ.get("WORLD_INTELLIGENCE_ENABLED", "1") == "1")
+    apify_ingestion_enabled: bool = field(default_factory=lambda: os.environ.get("APIFY_INGESTION_ENABLED", "0") == "1")
+    community_signals_enabled: bool = field(default_factory=lambda: os.environ.get("COMMUNITY_SIGNALS_ENABLED", "0") == "1")
+    targeted_market_refresh_enabled: bool = field(default_factory=lambda: os.environ.get("TARGETED_MARKET_REFRESH_ENABLED", "1") == "1")
+    market_based_ranking_enabled: bool = field(default_factory=lambda: os.environ.get("MARKET_BASED_RANKING_ENABLED", "1") == "1")
     web_dir: Path = field(default_factory=lambda: REPO_ROOT / "apps" / "web")
 
     @property

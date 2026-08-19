@@ -1,0 +1,353 @@
+"""Development seed corpus for the PublicFigureKnowledgeBase.
+
+Every claim below is a narrow, documented PROFESSIONAL fact with a credible
+public source — first-person interviews, autobiographies, official material,
+reputably-sourced books. No psychology, no quotes-site material, no fan pages.
+Runtime reads the DATABASE; this file only feeds the ingestion pipeline.
+"""
+
+FIGURES: list[dict] = [
+    {
+        "id": "sara_blakely", "name": "Sara Blakely",
+        "domains": ["consumer products", "apparel"], "roles": ["entrepreneur", "operator"],
+        "sources": [
+            {"id": "blakely_hibt_2016", "kind": "interview", "title": "How I Built This: Spanx — Sara Blakely",
+             "publisher": "NPR", "published_at": "2016", "credibility": 0.85,
+             "url": "https://www.npr.org/2016/09/12/493312213/spanx-sara-blakely"},
+            {"id": "blakely_forbes_2012", "kind": "profile", "title": "Sara Blakely, the youngest self-made female billionaire",
+             "publisher": "Forbes", "published_at": "2012", "credibility": 0.75},
+        ],
+        "evidence": [
+            {"id": "blakely_fax", "source": "blakely_hibt_2016",
+             "claim": "Sold fax machines door-to-door for roughly seven years before starting Spanx."},
+            {"id": "blakely_dayjob", "source": "blakely_hibt_2016",
+             "claim": "Kept her sales day job for about two years while developing the first Spanx prototype at night."},
+            {"id": "blakely_patent", "source": "blakely_forbes_2012",
+             "claim": "Wrote her own patent application from a textbook to avoid legal fees she couldn't afford."},
+        ],
+        "patterns": [
+            {"id": "blakely_commercial", "construct": "commercial_orientation", "confidence": 0.85,
+             "description": "years of direct, face-to-face selling before ever building a product",
+             "evidence_refs": ["blakely_fax"]},
+            {"id": "blakely_derisk", "construct": "risk_behavior", "confidence": 0.8,
+             "description": "took the entrepreneurial leap in stages — day job kept until the product was real",
+             "evidence_refs": ["blakely_dayjob"]},
+            {"id": "blakely_scrappy", "construct": "learning_behavior", "confidence": 0.7,
+             "description": "taught herself unfamiliar professional skills (patent writing) rather than outsourcing them",
+             "evidence_refs": ["blakely_patent"]},
+        ],
+    },
+    {
+        "id": "james_dyson", "name": "James Dyson",
+        "domains": ["industrial design", "engineering"], "roles": ["engineer", "builder", "entrepreneur"],
+        "sources": [
+            {"id": "dyson_invention_2021", "kind": "biography", "title": "Invention: A Life",
+             "publisher": "Simon & Schuster", "published_at": "2021", "credibility": 0.85},
+        ],
+        "evidence": [
+            {"id": "dyson_prototypes", "source": "dyson_invention_2021",
+             "claim": "Built 5,127 prototypes over about five years before the first working bagless vacuum."},
+            {"id": "dyson_licensing", "source": "dyson_invention_2021",
+             "claim": "After established manufacturers declined the technology, manufactured and sold it under his own name."},
+        ],
+        "patterns": [
+            {"id": "dyson_iteration", "construct": "experimentation", "confidence": 0.9,
+             "description": "resolved uncertainty by building the next physical prototype, thousands of times",
+             "evidence_refs": ["dyson_prototypes"]},
+            {"id": "dyson_persistence", "construct": "long_term_orientation", "confidence": 0.85,
+             "description": "stayed on one unsolved product problem for years without market validation",
+             "evidence_refs": ["dyson_prototypes", "dyson_licensing"]},
+        ],
+    },
+    {
+        "id": "margaret_hamilton", "name": "Margaret Hamilton",
+        "domains": ["software engineering", "aerospace"], "roles": ["engineer", "leader"],
+        "sources": [
+            {"id": "hamilton_nasa", "kind": "company_material", "title": "Margaret Hamilton — Apollo flight software lead",
+             "publisher": "NASA History Office", "published_at": "2016", "credibility": 0.9},
+            {"id": "hamilton_mit_2016", "kind": "interview", "title": "Scene at MIT: Margaret Hamilton's Apollo code",
+             "publisher": "MIT News", "published_at": "2016", "credibility": 0.85},
+        ],
+        "evidence": [
+            {"id": "hamilton_lead", "source": "hamilton_nasa",
+             "claim": "Led the MIT Instrumentation Laboratory team that developed the Apollo onboard flight software."},
+            {"id": "hamilton_errors", "source": "hamilton_mit_2016",
+             "claim": "Pushed systematic error-detection and priority-scheduling design that let the Apollo 11 computer recover during landing."},
+        ],
+        "patterns": [
+            {"id": "hamilton_systems", "construct": "systems_thinking", "confidence": 0.85,
+             "description": "designed for the failure cases nobody expected to happen, as a system property",
+             "evidence_refs": ["hamilton_errors"]},
+            {"id": "hamilton_depth", "construct": "technical_depth", "confidence": 0.9,
+             "description": "took an unproven discipline (onboard software) seriously enough to lead it end to end",
+             "evidence_refs": ["hamilton_lead"]},
+        ],
+    },
+    {
+        "id": "ed_catmull", "name": "Ed Catmull",
+        "domains": ["computer graphics", "film"], "roles": ["researcher", "operator", "leader"],
+        "sources": [
+            {"id": "catmull_creativity_2014", "kind": "book", "title": "Creativity, Inc.",
+             "publisher": "Random House", "published_at": "2014", "credibility": 0.85},
+        ],
+        "evidence": [
+            {"id": "catmull_phd", "source": "catmull_creativity_2014",
+             "claim": "Spent years in graphics research (z-buffer, subdivision surfaces) with the explicit long-range goal of a computer-animated film."},
+            {"id": "catmull_notes", "source": "catmull_creativity_2014",
+             "claim": "Built and ran Pixar's Braintrust — a standing structure for candid peer critique of unfinished work."},
+        ],
+        "patterns": [
+            {"id": "catmull_longterm", "construct": "long_term_orientation", "confidence": 0.85,
+             "description": "held a twenty-year technical goal through several employers before it became possible",
+             "evidence_refs": ["catmull_phd"]},
+            {"id": "catmull_ops", "construct": "operational_leadership", "confidence": 0.8,
+             "description": "institutionalized feedback so quality didn't depend on any single reviewer",
+             "evidence_refs": ["catmull_notes"]},
+        ],
+    },
+    {
+        "id": "julia_child", "name": "Julia Child",
+        "domains": ["culinary arts", "publishing", "television"], "roles": ["creator"],
+        "sources": [
+            {"id": "child_mylife_2006", "kind": "biography", "title": "My Life in France",
+             "publisher": "Knopf", "published_at": "2006", "credibility": 0.85},
+        ],
+        "evidence": [
+            {"id": "child_cordonbleu", "source": "child_mylife_2006",
+             "claim": "Began professional training at Le Cordon Bleu at age 37, after a first career in government service."},
+            {"id": "child_book", "source": "child_mylife_2006",
+             "claim": "Spent roughly nine years researching, testing and co-writing Mastering the Art of French Cooking."},
+        ],
+        "patterns": [
+            {"id": "child_reinvention", "construct": "learning_behavior", "confidence": 0.85,
+             "description": "entered a demanding new field late and treated it as full professional training, not a hobby",
+             "evidence_refs": ["child_cordonbleu"]},
+            {"id": "child_depth", "construct": "domain_depth", "confidence": 0.8,
+             "description": "tested and re-tested one body of work for nearly a decade before publishing",
+             "evidence_refs": ["child_book"]},
+        ],
+    },
+    {
+        "id": "yvon_chouinard", "name": "Yvon Chouinard",
+        "domains": ["outdoor equipment", "apparel"], "roles": ["builder", "entrepreneur"],
+        "sources": [
+            {"id": "chouinard_lmpgs_2005", "kind": "book", "title": "Let My People Go Surfing",
+             "publisher": "Penguin", "published_at": "2005", "credibility": 0.85},
+        ],
+        "evidence": [
+            {"id": "chouinard_pitons", "source": "chouinard_lmpgs_2005",
+             "claim": "Taught himself blacksmithing to forge his own climbing pitons and sold them from the back of his car."},
+            {"id": "chouinard_products", "source": "chouinard_lmpgs_2005",
+             "claim": "Improved gear because he personally used it; product decisions preceded any interest in marketing."},
+        ],
+        "patterns": [
+            {"id": "chouinard_builder", "construct": "builder_orientation", "confidence": 0.85,
+             "description": "made the thing himself first; the business formed around the making",
+             "evidence_refs": ["chouinard_pitons"]},
+            {"id": "chouinard_product", "construct": "product_obsession", "confidence": 0.8,
+             "description": "used his own products in the field and let that use drive iteration",
+             "evidence_refs": ["chouinard_products"]},
+        ],
+    },
+    {
+        "id": "grace_hopper", "name": "Grace Hopper",
+        "domains": ["computing", "military"], "roles": ["scientist", "engineer"],
+        "sources": [
+            {"id": "hopper_yale", "kind": "profile", "title": "Grace Murray Hopper biography",
+             "publisher": "Yale University", "published_at": "2017", "credibility": 0.85},
+            {"id": "hopper_lectures", "kind": "talk", "title": "Recorded lectures (nanosecond wire demonstrations)",
+             "publisher": "US Navy / public archives", "published_at": "1980", "credibility": 0.8},
+        ],
+        "evidence": [
+            {"id": "hopper_compiler", "source": "hopper_yale",
+             "claim": "Developed the A-0 compiler and drove machine-independent programming languages that led to COBOL."},
+            {"id": "hopper_teaching", "source": "hopper_lectures",
+             "claim": "Used physical props (a nanosecond of wire) in decades of lectures to make abstract computing concrete."},
+        ],
+        "patterns": [
+            {"id": "hopper_depth", "construct": "technical_depth", "confidence": 0.85,
+             "description": "built foundational tooling others assumed impossible ('computers can't write programs')",
+             "evidence_refs": ["hopper_compiler"]},
+            {"id": "hopper_distribution", "construct": "distribution_orientation", "confidence": 0.7,
+             "description": "spent decades translating deep technical ideas for non-specialist audiences",
+             "evidence_refs": ["hopper_teaching"]},
+        ],
+    },
+    {
+        "id": "shigeru_miyamoto", "name": "Shigeru Miyamoto",
+        "domains": ["game design"], "roles": ["creator", "leader"],
+        "sources": [
+            {"id": "miyamoto_iwata_asks", "kind": "interview", "title": "Iwata Asks interview series",
+             "publisher": "Nintendo (official)", "published_at": "2009", "credibility": 0.85},
+        ],
+        "evidence": [
+            {"id": "miyamoto_watching", "source": "miyamoto_iwata_asks",
+             "claim": "Routinely watched first-time players over their shoulder and reworked mechanics based on where they struggled."},
+            {"id": "miyamoto_upending", "source": "miyamoto_iwata_asks",
+             "claim": "Known within Nintendo for late-stage redesigns ('upending the tea table') when play-feel wasn't right."},
+        ],
+        "patterns": [
+            {"id": "miyamoto_product", "construct": "product_obsession", "confidence": 0.85,
+             "description": "judged work by observed first-contact behavior, not by internal opinion",
+             "evidence_refs": ["miyamoto_watching"]},
+            {"id": "miyamoto_iteration", "construct": "experimentation", "confidence": 0.75,
+             "description": "willing to restart late when testing contradicted the design",
+             "evidence_refs": ["miyamoto_upending"]},
+        ],
+    },
+    {
+        "id": "indra_nooyi", "name": "Indra Nooyi",
+        "domains": ["consumer goods", "corporate strategy"], "roles": ["leader", "operator"],
+        "sources": [
+            {"id": "nooyi_mylife_2021", "kind": "biography", "title": "My Life in Full",
+             "publisher": "Portfolio", "published_at": "2021", "credibility": 0.85},
+        ],
+        "evidence": [
+            {"id": "nooyi_ceo", "source": "nooyi_mylife_2021",
+             "claim": "Served twelve years as PepsiCo CEO and led the long-range 'Performance with Purpose' portfolio redesign."},
+            {"id": "nooyi_prep", "source": "nooyi_mylife_2021",
+             "claim": "Describes preparing for board and strategy work by studying source material in unusual depth, a habit from her strategy years."},
+        ],
+        "patterns": [
+            {"id": "nooyi_ops", "construct": "operational_leadership", "confidence": 0.85,
+             "description": "ran a very large operating system of a company while re-pointing it over a decade",
+             "evidence_refs": ["nooyi_ceo"]},
+            {"id": "nooyi_longterm", "construct": "long_term_orientation", "confidence": 0.75,
+             "description": "traded short-term optics for a multi-year repositioning she had to defend repeatedly",
+             "evidence_refs": ["nooyi_ceo", "nooyi_prep"]},
+        ],
+    },
+    {
+        "id": "jane_goodall", "name": "Jane Goodall",
+        "domains": ["primatology", "conservation"], "roles": ["researcher", "scientist"],
+        "sources": [
+            {"id": "goodall_shadow_1971", "kind": "book", "title": "In the Shadow of Man",
+             "publisher": "Houghton Mifflin", "published_at": "1971", "credibility": 0.85},
+            {"id": "goodall_jgi", "kind": "company_material", "title": "Jane's story — Gombe research history",
+             "publisher": "Jane Goodall Institute", "published_at": "2020", "credibility": 0.8},
+        ],
+        "evidence": [
+            {"id": "goodall_start", "source": "goodall_jgi",
+             "claim": "Began the Gombe chimpanzee field study in 1960 without a university degree, on observational skill alone."},
+            {"id": "goodall_decades", "source": "goodall_shadow_1971",
+             "claim": "Sustained continuous long-term field observation that overturned assumptions about tool use."},
+        ],
+        "patterns": [
+            {"id": "goodall_initiative", "construct": "learning_behavior", "confidence": 0.8,
+             "description": "entered a field through direct observation and built credentials afterwards",
+             "evidence_refs": ["goodall_start"]},
+            {"id": "goodall_depth", "construct": "domain_depth", "confidence": 0.85,
+             "description": "let one narrow subject compound over decades instead of rotating topics",
+             "evidence_refs": ["goodall_decades"]},
+        ],
+    },
+    {
+        "id": "john_carmack", "name": "John Carmack",
+        "domains": ["software engineering", "games", "vr"], "roles": ["engineer", "builder"],
+        "sources": [
+            {"id": "carmack_mod_2003", "kind": "book", "title": "Masters of Doom (David Kushner)",
+             "publisher": "Random House", "published_at": "2003", "credibility": 0.8},
+            {"id": "carmack_quakecon", "kind": "talk", "title": "QuakeCon keynotes (recorded)",
+             "publisher": "id Software / public recordings", "published_at": "2013", "credibility": 0.8},
+        ],
+        "evidence": [
+            {"id": "carmack_engines", "source": "carmack_mod_2003",
+             "claim": "Rebuilt rendering engines in rapid succession, each proving a technique the previous one couldn't."},
+            {"id": "carmack_hours", "source": "carmack_quakecon",
+             "claim": "Describes structuring work as long uninterrupted implementation blocks and measuring himself by shipped capability."},
+        ],
+        "patterns": [
+            {"id": "carmack_builder", "construct": "builder_orientation", "confidence": 0.85,
+             "description": "answered open technical questions by building the working version",
+             "evidence_refs": ["carmack_engines"]},
+            {"id": "carmack_depth", "construct": "technical_depth", "confidence": 0.85,
+             "description": "went unusually deep in one technical lane and let depth compound",
+             "evidence_refs": ["carmack_engines", "carmack_hours"]},
+        ],
+    },
+    {
+        "id": "vera_wang", "name": "Vera Wang",
+        "domains": ["fashion"], "roles": ["creator", "entrepreneur"],
+        "sources": [
+            {"id": "wang_vogue_profile", "kind": "profile", "title": "Vera Wang career retrospectives",
+             "publisher": "Vogue / Business of Fashion", "published_at": "2017", "credibility": 0.7},
+        ],
+        "evidence": [
+            {"id": "wang_forty", "source": "wang_vogue_profile",
+             "claim": "Opened her first design business at 40, after competitive figure skating and 17 years as a Vogue editor."},
+        ],
+        "patterns": [
+            {"id": "wang_reinvention", "construct": "learning_behavior", "confidence": 0.7,
+             "description": "converted years inside an industry into a late, deliberate move to the making side",
+             "evidence_refs": ["wang_forty"]},
+        ],
+    },
+    {
+        "id": "warren_buffett", "name": "Warren Buffett",
+        "domains": ["investing"], "roles": ["operator", "entrepreneur"],
+        "sources": [
+            {"id": "buffett_letters", "kind": "company_material", "title": "Berkshire Hathaway shareholder letters",
+             "publisher": "Berkshire Hathaway", "published_at": "2020", "credibility": 0.9},
+            {"id": "buffett_snowball_2008", "kind": "biography", "title": "The Snowball (Alice Schroeder, authorized)",
+             "publisher": "Bantam", "published_at": "2008", "credibility": 0.8},
+        ],
+        "evidence": [
+            {"id": "buffett_holding", "source": "buffett_letters",
+             "claim": "Documented multi-decade holding periods and an explicit 'favorite holding period is forever' operating principle."},
+            {"id": "buffett_reading", "source": "buffett_snowball_2008",
+             "claim": "Structured his working days around many hours of primary-source reading."},
+        ],
+        "patterns": [
+            {"id": "buffett_longterm", "construct": "long_term_orientation", "confidence": 0.9,
+             "description": "made time horizon itself the professional edge",
+             "evidence_refs": ["buffett_holding"]},
+            {"id": "buffett_learning", "construct": "learning_behavior", "confidence": 0.8,
+             "description": "treated daily primary-source study as the core job, not preparation for it",
+             "evidence_refs": ["buffett_reading"]},
+        ],
+    },
+    {
+        "id": "gwynne_shotwell", "name": "Gwynne Shotwell",
+        "domains": ["aerospace"], "roles": ["operator", "leader", "engineer"],
+        "sources": [
+            {"id": "shotwell_ted_2018", "kind": "talk", "title": "TED interview: SpaceX's plan (recorded)",
+             "publisher": "TED", "published_at": "2018", "credibility": 0.8},
+        ],
+        "evidence": [
+            {"id": "shotwell_sales", "source": "shotwell_ted_2018",
+             "claim": "Joined SpaceX as VP of business development, personally selling launches years before the rockets flew reliably."},
+            {"id": "shotwell_ops", "source": "shotwell_ted_2018",
+             "claim": "As President/COO ran day-to-day operations while the founder held the technical vision role."},
+        ],
+        "patterns": [
+            {"id": "shotwell_commercial", "construct": "commercial_orientation", "confidence": 0.8,
+             "description": "sold an unproven technical product on credibility and delivery discipline",
+             "evidence_refs": ["shotwell_sales"]},
+            {"id": "shotwell_ops", "construct": "operational_leadership", "confidence": 0.8,
+             "description": "made someone else's extreme vision operationally survivable",
+             "evidence_refs": ["shotwell_ops"]},
+        ],
+    },
+    {
+        "id": "donald_knuth", "name": "Donald Knuth",
+        "domains": ["computer science", "publishing"], "roles": ["scientist", "builder"],
+        "sources": [
+            {"id": "knuth_taocp", "kind": "book", "title": "The Art of Computer Programming (prefaces, project history)",
+             "publisher": "Addison-Wesley", "published_at": "2011", "credibility": 0.9},
+        ],
+        "evidence": [
+            {"id": "knuth_project", "source": "knuth_taocp",
+             "claim": "Has maintained one multi-volume book project since 1962, still unfinished by his own design."},
+            {"id": "knuth_tex", "source": "knuth_taocp",
+             "claim": "Paused the book for nearly a decade to build TeX because available typesetting wasn't good enough for it."},
+        ],
+        "patterns": [
+            {"id": "knuth_longterm", "construct": "long_term_orientation", "confidence": 0.9,
+             "description": "committed to a single body of work on a fifty-year horizon",
+             "evidence_refs": ["knuth_project"]},
+            {"id": "knuth_builder", "construct": "builder_orientation", "confidence": 0.8,
+             "description": "built the missing tool himself when the existing ones compromised the work",
+             "evidence_refs": ["knuth_tex"]},
+        ],
+    },
+]

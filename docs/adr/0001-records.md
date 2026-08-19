@@ -5,8 +5,7 @@ One deployable with strong module boundaries (`app/{signals,policy,ranking,...}`
 Microservices are premature before real load or team scale.
 
 ## ADR-2 · PostgreSQL as system of record
-All authoritative state in Postgres via `DATABASE_URL`. Redis (optional,
-`REDIS_URL`) only for ephemeral state. Dev fallback is SQLite, loudly non-prod.
+All authoritative state in Postgres via `DATABASE_URL` — including jobs, refresh locks and world intelligence. No Redis, no external queue. Dev fallback is SQLite, loudly non-prod.
 
 ## ADR-3 · pgvector
 Embeddings stored as JSON everywhere plus native `vector` columns + ivfflat

@@ -99,8 +99,8 @@ def test_D_no_repeated_bridges(client):
         if it["type"] in ("chapter_transition", "chapter_closing"):
             data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": it["next"]}).json()
             continue
-        if it["type"] == "story_close":
-            data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "DISCOVER_WORKSPACE"}).json()
+        if it["type"] in ("story_close", "materialization"):
+            data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": it["next"]}).json()
             continue
         data = client.post(f"/v1/discover/sessions/{sid}/responses",
                            json={"interactionId": it["id"], "response": drive_response(it)}).json()

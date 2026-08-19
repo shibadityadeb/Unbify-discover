@@ -1,6 +1,7 @@
 """Seed tooling: interaction definitions + opportunity catalog. Idempotent."""
 from .catalog import CATALOG_VERSION, INTERACTIONS
 from .db import Base, SessionLocal, engine
+from .figure_kb import seed_figures
 from .models import InteractionDefinition
 from .opportunities import seed_opportunities
 
@@ -18,8 +19,15 @@ def run() -> None:
                 ))
                 added += 1
         opps = seed_opportunities(db)
+        figs = seed_figures(db)
+        from .world.ingestion import seed_ontology, seed_baseline_signals
+        from .world.signals import recompute_signals
+        occs = seed_ontology(db)
+        seed_baseline_signals(db)
+        recompute_signals(db)
         db.commit()
-        print(f"seeded {added} interaction definitions, {opps} opportunities ({CATALOG_VERSION})")
+        print(f"seeded {added} interaction definitions, {opps} opportunities, "
+              f"{figs} public figures, {occs} occupations ({CATALOG_VERSION})")
 
 
 if __name__ == "__main__":
