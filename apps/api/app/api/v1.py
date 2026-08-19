@@ -1,6 +1,7 @@
 """Versioned public API. The server owns authoritative journey progression."""
 from __future__ import annotations
 
+import os
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -20,6 +21,9 @@ _buckets: dict[str, list[float]] = {}
 
 
 def _rate_limit(key: str, limit: int, window: float = 60.0) -> None:
+    from ..config import settings
+    if settings.app_env == "test":
+        return   # abuse protection, not a test constraint — the whole suite is one host
     now = time.time()
     bucket = [t for t in _buckets.get(key, []) if now - t < window]
     if len(bucket) >= limit:
@@ -260,3 +264,437 @@ def report_outcome(body: OutcomeIn, request: Request, db: Session = Depends(get_
     emit(db, body.sessionId, "outcome.reported", {"kind": body.kind})
     db.commit()
     return {"ok": True}
+
+
+class ResonanceFeedback(BaseModel):
+    figureId: str = Field(max_length=60)
+    patternId: str | None = None
+    verdict: str = Field(pattern="^(see_it|not_sure|not_relevant)$")
+
+
+@router.post("/discover/sessions/{session_id}/resonance/feedback")
+def resonance_feedback(session_id: str, body: ResonanceFeedback, db: Session = Depends(get_db)):
+    """The user may challenge a match. Disagreement is training signal, not
+    error: a rejected resonance is suppressed until the evidence materially
+    changes, and feeds future ranking training data."""
+    session = _get_session(db, session_id)
+    from ..resonance import record_feedback
+    record_feedback(db, session, body.figureId, body.patternId, body.verdict, session.journey_status)
+    emit(db, session_id, "resonance.feedback", {"figure": body.figureId, "verdict": body.verdict})
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/debug/sessions/{session_id}/story")
+def debug_story(session_id: str, db: Session = Depends(get_db)):
+    """Development-only Story Inspector — the tool for debugging repetition."""
+    from ..config import settings
+    if settings.is_production:
+        raise HTTPException(404, "not found")
+    session = _get_session(db, session_id)
+    from ..models import NarrativeSessionState, ResonanceSnapshot
+    st = db.get(NarrativeSessionState, session_id)
+    snap = (db.query(ResonanceSnapshot).filter_by(session_id=session_id)
+            .order_by(ResonanceSnapshot.created_at.desc()).first())
+    if not st:
+        return {"narrativeState": None}
+    threads = st.threads or []
+    return {
+        "narrativeState": {
+            "chapter": st.chapter, "emotionalPhase": st.emotional_phase,
+            "nextNarrativeIntent": st.next_narrative_intent,
+            "closingStyleHistory": st.chapter_closing_style_history,
+            "surprisesShown": st.surprises_shown,
+        },
+        "threadsOpened": [t for t in threads if t["status"] in ("opened", "developing")],
+        "threadsResolved": [t for t in threads if t["status"] in ("resolved", "contradicted", "abandoned")],
+        "previousStoryBeats": st.story_beats_shown,
+        "recentCopy": st.recent_copy,
+        "repetitionScores": {
+            "openings": st.sentence_openings_used, "shapes": st.sentence_shapes_used,
+            "tics": st.tics_used, "metaphors": st.metaphors_used,
+        },
+        "rejectedCopy": st.rejected_copy_log,
+        "publicFigureCandidates": (snap.candidates_considered if snap else []),
+        "matchEvidence": (snap.matches if snap else []),
+    }
+
+
+@router.get("/debug/sessions/{session_id}/intelligence")
+def debug_intelligence(session_id: str, db: Session = Depends(get_db)):
+    """Development-only Intelligence Inspector (PART 65): what the system
+    believes, why, what it refused to conclude, and what it plans to do."""
+    from ..config import settings
+    if settings.is_production:
+        raise HTTPException(404, "not found")
+    session = _get_session(db, session_id)
+    from ..models import (AmbiguityRecord, ChapterClosingPlan, EvidenceItem,
+                          Hypothesis, InferenceFeedback, NarrativeEvent,
+                          PolicyDecision, Response)
+    from ..knowledge import overinterpretation_risk, role_analysis_allowed
+    from .. import thresholds as _th
+    latest_response = (db.query(Response).filter_by(session_id=session_id)
+                       .order_by(Response.created_at.desc()).first())
+    decision = (db.query(PolicyDecision).filter_by(session_id=session_id)
+                .order_by(PolicyDecision.created_at.desc()).first())
+    hyps = db.query(Hypothesis).filter_by(session_id=session_id).all()
+    events = (db.query(NarrativeEvent).filter_by(session_id=session_id)
+              .order_by(NarrativeEvent.created_at.desc()).limit(8).all())
+    plan = (db.query(ChapterClosingPlan).filter_by(session_id=session_id)
+            .order_by(ChapterClosingPlan.created_at.desc()).first())
+    pc = session.practical_context or {}
+    dims = session.dimensions or {}
+    tops = sorted(dims.items(), key=lambda kv: kv[1].get("confidence", 0), reverse=True)
+    allowed, gate_reason = role_analysis_allowed(session)
+    return {
+        "latestUserResponse": (latest_response.payload if latest_response else None),
+        "explicitAndDerivedFacts": pc.get("_facts", {}),
+        "ambiguities": [{"key": a.key, "status": a.status, "value": a.clarification_value,
+                         "interpretations": a.possible_interpretations}
+                        for a in db.query(AmbiguityRecord).filter_by(session_id=session_id)],
+        "hypotheses": [{"construct": h.construct, "direction": h.direction,
+                        "confidence": h.confidence, "status": h.status, "version": h.version,
+                        "supportingEvidence": len(h.supporting_evidence_ids or []),
+                        "contradictingEvidence": len(h.contradicting_evidence_ids or [])}
+                       for h in sorted(hyps, key=lambda x: -x.confidence)],
+        "invalidatedHypotheses": [h.construct for h in hyps if h.status in ("corrected", "contradicted")],
+        "recentHypothesisChanges": (session.counters or {}).get("_last_hypothesis_changes", []),
+        "topUncertainties": [{"dim": k, "confidence": round(v.get("confidence", 0), 2)}
+                             for k, v in sorted(dims.items(), key=lambda kv: kv[1].get("confidence", 0))[:5]],
+        "candidateActions": (decision.eligible_actions if decision else []),
+        "actionValues": (decision.action_values if decision else {}),
+        "selectedAction": (decision.chosen_action if decision else None),
+        "rejectedInteractions": (session.counters or {}).get("_last_rejected", {}),
+        "overinterpretationRisk": overinterpretation_risk(
+            0.7, tops[0][1].get("confidence", 0) if tops else 0.0),
+        "roleAnalysisGate": {"allowed": allowed, "reason": gate_reason},
+        "recentStoryEvents": [{"type": e.type, "importance": e.importance,
+                               "consumed": bool(e.consumed_by_closing)} for e in events],
+        "lastClosingPlan": ({"structure": plan.selected_structure, "why": plan.why_this_closing,
+                             "whatChanged": plan.what_changed,
+                             "availableEvents": plan.available_events} if plan else None),
+        "evidenceLedgerSize": db.query(EvidenceItem).filter_by(session_id=session_id).count(),
+        "inferenceFeedback": db.query(InferenceFeedback).filter_by(session_id=session_id).count(),
+        "thresholdsVersion": _th.THRESHOLDS_VERSION,
+    }
+
+
+# ---------------- world intelligence: internal + evidence endpoints ----------------
+
+def _internal_guard(request: Request) -> None:
+    """Internal ops endpoints. SESSION_SECRET is optional for local work, but
+    an unset secret must never leave these open on a reachable deployment —
+    without it we only serve loopback callers."""
+    from ..config import settings
+    token = request.headers.get("X-Internal-Token", "")
+    configured = bool(os.environ.get("SESSION_SECRET"))
+    if not configured:
+        host = request.client.host if request.client else ""
+        if host not in ("127.0.0.1", "::1", "localhost", "testclient"):
+            raise HTTPException(403, "set SESSION_SECRET to use internal endpoints remotely")
+        return
+    if not token or token != settings.session_secret:
+        raise HTTPException(403, "internal endpoint")
+
+
+@router.post("/internal/intelligence/sources/{source_id}/refresh")
+def refresh_source(source_id: str, request: Request, db: Session = Depends(get_db)):
+    _internal_guard(request)
+    from ..models import WISource
+    from ..world import ingestion
+    from ..world.signals import recompute_signals
+    from ..world.sources import ingestible
+    source = db.get(WISource, source_id)
+    if not source:
+        raise HTTPException(404, "unknown source")
+    ok, why = ingestible(source)
+    if not ok:
+        raise HTTPException(409, f"source not ingestible: {why}")
+    if source_id == "src_seed_taxonomy":
+        ingestion.seed_ontology(db)
+    elif source_id == "src_seed_labor_stats":
+        ingestion.seed_baseline_signals(db)
+    version = recompute_signals(db)
+    db.commit()
+    return {"ok": True, "marketSnapshotVersion": version}
+
+
+@router.post("/internal/intelligence/apify/webhook")
+async def apify_webhook(request: Request, db: Session = Depends(get_db)):
+    """Acknowledge-and-queue. Signature AND run provenance are validated, and
+    large dataset normalization happens in a worker, never in this request."""
+    import json as _json
+    from ..world import apify_gateway, jobs
+    body = await request.body()
+    if not apify_gateway.verify_webhook(body, request.headers.get("X-Apify-Webhook-Signature")):
+        raise HTTPException(403, "invalid webhook signature")
+    try:
+        payload = _json.loads(body or b"{}")
+    except ValueError:
+        raise HTTPException(400, "malformed payload")
+    validation = apify_gateway.validate_run_event(db, payload)
+    if not validation.get("ok"):
+        raise HTTPException(409, validation.get("error", "run not recognized"))
+    source_run = validation["job"]
+    scope = dict(source_run.scope or {})
+    if validation.get("status") not in (None, "SUCCEEDED"):
+        jobs.fail(db, source_run, f"apify run {validation.get('status')}")
+        db.commit()
+        return {"ok": True, "queued": False, "runStatus": validation.get("status")}
+    normalize = jobs.enqueue(db, "normalize_dataset",
+                             scope={**scope, "datasetId": validation.get("datasetId")},
+                             scope_hash=source_run.scope_hash, priority=40, dedupe=False)
+    db.commit()
+    return {"ok": True, "queued": True, "jobId": normalize.id}
+
+
+@router.get("/internal/intelligence/runs")
+def ingestion_runs(request: Request, db: Session = Depends(get_db)):
+    _internal_guard(request)
+    from ..models import WIIngestionRun
+    runs = (db.query(WIIngestionRun).order_by(WIIngestionRun.started_at.desc()).limit(30).all())
+    return {"runs": [{"id": r.id, "source": r.source_id, "status": r.status,
+                      "records": r.record_count, "deduplicated": r.deduplicated_count,
+                      "validationFailures": r.validation_failures, "quality": r.quality,
+                      "startedAt": r.started_at.isoformat(), "error": r.error} for r in runs]}
+
+
+@router.get("/opportunities/{opportunity_id}/evidence")
+def opportunity_evidence(opportunity_id: str, sessionId: str, db: Session = Depends(get_db)):
+    """'Why are you saying this?' — full provenance for one recommendation:
+    claim → factors → market signal → observations → source."""
+    from ..models import (Opportunity, RecommendationItem, RecommendationSet,
+                          WIMarketSignal, WISource, WISourceObservation)
+    item = (db.query(RecommendationItem)
+            .join(RecommendationSet, RecommendationItem.set_id == RecommendationSet.id)
+            .filter(RecommendationSet.session_id == sessionId,
+                    RecommendationItem.opportunity_id == opportunity_id)
+            .order_by(RecommendationItem.rank).first())
+    if not item:
+        raise HTTPException(404, "not recommended to this session")
+    opp = db.get(Opportunity, opportunity_id)
+    occ_id = None
+    if opportunity_id.startswith("world_"):
+        occ_id = opportunity_id[len("world_"):].rsplit("_", 1)[0]
+    sigs = (db.query(WIMarketSignal).filter_by(occupation_id=occ_id).all() if occ_id else [])
+    evidence = []
+    for sig in sigs:
+        obs_rows = [db.get(WISourceObservation, oid) for oid in (sig.evidence_refs or [])[:5]]
+        evidence.append({
+            "construct": sig.construct, "value": sig.value, "confidence": sig.confidence,
+            "geography": sig.geography, "sourceCount": sig.source_count,
+            "sourceDiversity": sig.source_diversity, "conflicts": sig.conflicts,
+            "snapshotVersion": sig.snapshot_version,
+            "updatedAt": sig.updated_at.isoformat(),
+            "observations": [{"source": (db.get(WISource, o.source_id).name
+                                         if o and db.get(WISource, o.source_id) else o.source_id if o else None),
+                              "signalType": o.signal_type if o else None,
+                              "observedAt": o.observed_at.isoformat() if o else None}
+                             for o in obs_rows if o],
+        })
+    return {"opportunity": opp.title if opp else opportunity_id,
+            "rankingFactors": item.factor_contributions,
+            "narrative": item.narrative, "marketEvidence": evidence}
+
+
+# ---------------- materialization: material objects, experiments, routes ----------------
+
+class ObjectStatus(BaseModel):
+    kind: str = Field(pattern="^(capability|leverage|gap|direction|experiment|insight|question)$")
+    key: str = Field(max_length=120)
+    status: str = Field(pattern="^(new|exploring|saved|testing|active|dismissed|completed)$")
+    reason: str | None = Field(default=None, max_length=200)
+
+
+class ExperimentOutcome(BaseModel):
+    verdict: str = Field(pattern="^(promising|mixed|not_for_me)$")
+    note: str | None = Field(default=None, max_length=400)
+    earned: bool | None = None
+    continuing: bool | None = None
+
+
+@router.get("/discover/sessions/{session_id}/materialization")
+def get_materialization(session_id: str, db: Session = Depends(get_db)):
+    """The material picture. Available from MATERIALIZATION onward — it stays
+    reachable from the workspace, since these objects persist."""
+    session = _get_session(db, session_id)
+    if session.journey_status not in ("MATERIALIZATION", "DISCOVER_WORKSPACE"):
+        raise HTTPException(409, "materialization opens after the story completes")
+    from .. import materialization
+    cached = (session.practical_context or {}).get("_materialization")
+    payload = cached or materialization.build(db, session)
+    if not cached:
+        pc = dict(session.practical_context or {})
+        pc["_materialization"] = payload
+        session.practical_context = pc
+    db.commit()
+    return {"sessionId": session.id, **payload}
+
+
+@router.post("/discover/sessions/{session_id}/objects/status")
+def set_object_status(session_id: str, body: ObjectStatus, db: Session = Depends(get_db)):
+    """Save, dismiss, or advance any material object. Dismissal is ranking
+    feedback — the user is never told the model knows better."""
+    session = _get_session(db, session_id)
+    from .. import materialization
+    row = materialization.set_status(db, session, body.kind, body.key, body.status, body.reason)
+    if not row:
+        raise HTTPException(404, "unknown object")
+    emit(db, session_id, "material.status", {"kind": body.kind, "key": body.key,
+                                             "status": body.status})
+    if body.status == "dismissed":
+        # a dismissed direction must not silently persist in cached payloads
+        pc = dict(session.practical_context or {})
+        pc.pop("_materialization", None)
+        pc.pop("_lives", None)
+        session.practical_context = pc
+    db.commit()
+    return {"ok": True, "status": row.status, "saved": row.saved}
+
+
+@router.get("/discover/sessions/{session_id}/saved")
+def get_saved(session_id: str, db: Session = Depends(get_db)):
+    session = _get_session(db, session_id)
+    from .. import materialization
+    return {"saved": materialization.saved_objects(db, session)}
+
+
+@router.post("/discover/sessions/{session_id}/experiments/{direction_key}/start")
+def start_experiment(session_id: str, direction_key: str, db: Session = Depends(get_db)):
+    session = _get_session(db, session_id)
+    from .. import experiments, materialization
+    from ..models import MaterialObject
+    obj = (db.query(MaterialObject)
+           .filter_by(session_id=session.id, kind="direction", key=direction_key).first())
+    if not obj:
+        raise HTTPException(404, "unknown direction")
+    spec = (obj.detail or {}).get("experiment") or experiments.generate(session, obj.detail or {})
+    run = experiments.persist(db, session, direction_key, spec, obj.id)
+    materialization.set_status(db, session, "direction", direction_key, "testing")
+    emit(db, session_id, "experiment.started", {"direction": direction_key})
+    db.commit()
+    return {"ok": True, "experimentId": run.id, "action": run.action, "teaches": run.teaches}
+
+
+@router.post("/discover/sessions/{session_id}/experiments/{experiment_id}/outcome")
+def report_experiment_outcome(session_id: str, experiment_id: str, body: ExperimentOutcome,
+                              db: Session = Depends(get_db)):
+    """Outcomes are the strongest evidence the system ever receives — much
+    stronger than early questionnaire answers."""
+    session = _get_session(db, session_id)
+    from datetime import datetime
+    from .. import knowledge, materialization
+    from ..models import ExperimentRun, Outcome
+    run = db.get(ExperimentRun, experiment_id)
+    if not run or run.session_id != session.id:
+        raise HTTPException(404, "unknown experiment")
+    run.status = "completed"
+    run.completed_at = datetime.utcnow()
+    run.outcome = body.model_dump()
+    knowledge.record_evidence(db, session, "outcome",
+                              f"ran experiment '{run.action[:80]}' → {body.verdict}"
+                              + (f": {body.note}" if body.note else ""),
+                              strength=1.0)
+    knowledge.sync_hypotheses(db, session, trigger=f"experiment_outcome:{body.verdict}")
+    db.add(Outcome(session_id=session.id, opportunity_id=run.direction_key,
+                   kind="experiment_outcome", payload=body.model_dump()))
+    materialization.set_status(db, session, "direction", run.direction_key,
+                               "active" if body.verdict == "promising" else
+                               ("dismissed" if body.verdict == "not_for_me" else "exploring"),
+                               reason=(body.note if body.verdict == "not_for_me" else None))
+    pc = dict(session.practical_context or {})
+    pc.pop("_materialization", None)   # the picture changes when reality answers
+    pc.pop("_lives", None)
+    session.practical_context = pc
+    emit(db, session_id, "experiment.outcome", {"verdict": body.verdict})
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/discover/sessions/{session_id}/product-routes/{route_id}/accept")
+def accept_product_route(session_id: str, route_id: str, db: Session = Depends(get_db)):
+    session = _get_session(db, session_id)
+    from .. import products
+    if not products.accept(db, session, route_id):
+        raise HTTPException(404, "unknown route")
+    emit(db, session_id, "product.route_accepted", {"route": route_id})
+    db.commit()
+    return {"ok": True}
+
+
+# ---------------- real-time analysis: computed at request time ----------------
+
+class AnalyzeRequest(BaseModel):
+    sessionId: str = Field(min_length=8, max_length=64)
+    action: str = Field(max_length=60)
+    intent: dict = Field(default_factory=dict)
+    refreshPreference: str = Field(default="live_if_needed",
+                                   pattern="^(live_if_needed|never|force)$")
+    geography: str | None = Field(default=None, max_length=60)
+
+
+@router.post("/discover/actions/analyze")
+def analyze_action(body: AnalyzeRequest, db: Session = Depends(get_db)):
+    """The real-time recommendation pipeline. Loads the LATEST human state,
+    checks the freshness of exactly the signals this action needs, triggers a
+    targeted refresh only when warranted, ranks now, and records the versions
+    that produced the answer."""
+    session = _get_session(db, body.sessionId)
+    if session.journey_status not in ("MATERIALIZATION", "DISCOVER_WORKSPACE"):
+        raise HTTPException(409, "analysis opens after the story completes")
+    from ..world.analysis import analyze
+    out = analyze(db, session, body.action, body.intent,
+                  body.refreshPreference, body.geography)
+    emit(db, session.id, "analysis.generated",
+         {"action": body.action, "status": out["status"],
+          "freshness": out["marketFreshness"]["state"]})
+    db.commit()
+    return out
+
+
+@router.get("/intelligence/refresh/{job_id}")
+def refresh_status(job_id: str, sessionId: str | None = None, db: Session = Depends(get_db)):
+    """Poll a targeted refresh. When it completes, the caller re-runs the
+    analysis — new observations produce a NEW analysis version, never an
+    in-place edit of the old conclusion."""
+    from ..world import jobs
+    state = jobs.status(db, job_id)
+    if not state:
+        raise HTTPException(404, "unknown refresh")
+    out = {"refresh": state}
+    if state["status"] == "completed" and sessionId:
+        session = db.get(DiscoverSession, sessionId)
+        if session:
+            from ..world.analysis import rerun_after_refresh
+            action = (state.get("scope") or {}).get("action") or "explore_opportunities"
+            out["analysis"] = rerun_after_refresh(db, session, action)
+            db.commit()
+    return out
+
+
+@router.get("/internal/intelligence/health")
+def intelligence_health(request: Request, db: Session = Depends(get_db)):
+    """Source health, job queue depth and domain coverage demand."""
+    _internal_guard(request)
+    from ..models import (DomainEnrichmentRequest, IntelligenceJob,
+                          IntelligenceScopeCache, SourceHealth)
+    from sqlalchemy import func
+    queue = dict(db.query(IntelligenceJob.status, func.count(IntelligenceJob.id))
+                 .group_by(IntelligenceJob.status).all())
+    return {
+        "jobQueue": queue,
+        "sources": [{"id": h.source_id, "lastSuccess": h.last_success.isoformat() if h.last_success else None,
+                     "failures": h.failure_count, "records": h.latest_record_count,
+                     "runs": h.total_runs, "costUsd": h.total_cost_usd,
+                     "usefulObservations": h.useful_observations}
+                    for h in db.query(SourceHealth).all()],
+        "scopes": [{"hash": s.scope_hash, "occupation": s.occupation_id,
+                    "geography": s.geography, "state": s.freshness_state,
+                    "coverage": s.coverage_score}
+                   for s in db.query(IntelligenceScopeCache).limit(25).all()],
+        "domainDemand": [{"domain": d.domain, "geography": d.geography,
+                          "requests": d.request_count, "priority": d.priority,
+                          "coverage": d.current_coverage}
+                         for d in db.query(DomainEnrichmentRequest)
+                         .order_by(DomainEnrichmentRequest.priority.asc()).limit(15).all()],
+    }

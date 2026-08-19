@@ -179,29 +179,166 @@
     }
     if (it.type === "chapter_closing") { renderChapterClosing(newSceneFresh(), it); return; }
     if (it.type === "story_close") { renderStoryClose(newSceneFresh(), it); return; }
+    if (it.type === "materialization") { renderMaterialization(newSceneFresh(), it); return; }
     if (it.type === "workspace") { renderWorkspace(newSceneFresh(), it); return; }
     render(it);
   }
 
   /* ---------------- rendering ---------------- */
 
+  /* ---- chapter closings: four different grammars, one scroll ritual ---- */
+
+  function sectionBeat(sec) {
+    const block = document.createElement("div");
+    block.className = "dx-close-sec";
+    if (sec.label) {
+      const l = document.createElement("p");
+      l.className = "cs-label";
+      l.textContent = sec.label;
+      block.appendChild(l);
+    }
+    const t = document.createElement("p");
+    t.className = "cs-text";
+    t.textContent = sec.text;
+    block.appendChild(t);
+    return block;
+  }
+
+  function sectionFragments(sec) {
+    /* Chapter 2: earlier answers return visually, then organize */
+    const block = document.createElement("div");
+    block.className = "dx-close-sec dx-close-frags";
+    (sec.items || []).forEach((f, i) => {
+      const s = document.createElement("span");
+      s.className = "dx-cfrag";
+      s.style.transitionDelay = (i * 380) + "ms";
+      s.textContent = f;
+      block.appendChild(s);
+    });
+    return block;
+  }
+
+  function sectionEvidence(sec) {
+    /* Chapter 3: professional context as structured evidence */
+    const block = document.createElement("div");
+    block.className = "dx-close-sec dx-close-evidence";
+    if (sec.heading) {
+      const h = document.createElement("p");
+      h.className = "cs-label";
+      h.textContent = sec.heading;
+      block.appendChild(h);
+    }
+    (sec.rows || []).forEach(r => {
+      const row = document.createElement("div");
+      row.className = "dx-ev-row";
+      row.innerHTML = `<span class="dx-ev-label"></span><span class="dx-ev-value"></span>`;
+      row.querySelector(".dx-ev-label").textContent = r.label;
+      row.querySelector(".dx-ev-value").textContent = String(r.value).replace(/_/g, " ");
+      block.appendChild(row);
+    });
+    return block;
+  }
+
+  function sectionMirror(sec) {
+    /* Chapter 4: the user first — the converging mirror */
+    const block = document.createElement("div");
+    block.className = "dx-close-sec dx-close-mirror";
+    (sec.items || []).forEach(m => {
+      const item = document.createElement("div");
+      item.className = "dx-mirror-item";
+      item.innerHTML = `<p class="cs-label"></p><p class="dx-mirror-text"></p>`;
+      item.querySelector(".cs-label").textContent = m.label;
+      item.querySelector(".dx-mirror-text").textContent = m.text;
+      block.appendChild(item);
+    });
+    return block;
+  }
+
+  function sectionSurprise(sec) {
+    const block = document.createElement("div");
+    block.className = "dx-close-sec dx-close-surprise";
+    block.innerHTML = `<p class="cs-label"></p><p class="cs-text dx-surprise-text"></p>`;
+    block.querySelector(".cs-label").textContent = sec.heading || "";
+    block.querySelector(".dx-surprise-text").textContent = sec.text || "";
+    return block;
+  }
+
+  function sectionResonance(sec) {
+    const block = document.createElement("div");
+    block.className = "dx-close-sec dx-resonance";
+    const h = document.createElement("p");
+    h.className = "cs-label dx-res-heading";
+    h.textContent = sec.heading;
+    block.appendChild(h);
+    if (sec.empty) {
+      const t = document.createElement("p");
+      t.className = "cs-text dx-res-empty";
+      t.textContent = sec.text;
+      block.appendChild(t);
+      return block;
+    }
+    (sec.matches || []).forEach(m => {
+      const card = document.createElement("div");
+      card.className = "dx-res-card";
+      card.innerHTML = `
+        <div class="dx-res-top"><span class="dx-res-name"></span><span class="dx-res-strength"></span></div>
+        <p class="dx-res-overlap"></p>
+        <div class="dx-res-cols">
+          <div><p class="dx-res-col-label">Your evidence</p><ul class="dx-res-yours"></ul></div>
+          <div><p class="dx-res-col-label">What we actually know</p><p class="dx-res-theirs"></p><p class="dx-res-source"></p></div>
+        </div>
+        <div class="dx-res-feedback">
+          <button data-v="see_it">I see it</button>
+          <button data-v="not_sure">Not sure</button>
+          <button data-v="not_relevant">Doesn't feel relevant</button>
+        </div>`;
+      card.querySelector(".dx-res-name").textContent = m.figure;
+      card.querySelector(".dx-res-strength").textContent = m.strength;
+      card.querySelector(".dx-res-overlap").textContent = "The overlap: " + m.overlap;
+      const yours = card.querySelector(".dx-res-yours");
+      (m.yourEvidence || []).forEach(e => {
+        const li = document.createElement("li");
+        li.textContent = e;
+        yours.appendChild(li);
+      });
+      card.querySelector(".dx-res-theirs").textContent = m.theirEvidence;
+      const src = m.source || {};
+      card.querySelector(".dx-res-source").textContent =
+        src.title ? `Source: ${src.title}${src.publisher ? " — " + src.publisher : ""}` : "";
+      card.querySelectorAll(".dx-res-feedback button").forEach(b => {
+        b.addEventListener("click", async () => {
+          card.querySelectorAll(".dx-res-feedback button").forEach(x => x.disabled = true);
+          b.classList.add("chosen");
+          try {
+            await api(`/sessions/${sessionId}/resonance/feedback`,
+              { figureId: m.figureId, patternId: m.patternId, verdict: b.dataset.v });
+          } catch (e) { /* feedback is best-effort */ }
+        }, { once: true });
+      });
+      block.appendChild(card);
+    });
+    if (sec.disclaimer) {
+      const d = document.createElement("p");
+      d.className = "dx-res-disclaimer";
+      d.textContent = sec.disclaimer;
+      block.appendChild(d);
+    }
+    return block;
+  }
+
+  const SECTION_BUILDERS = {
+    beat: sectionBeat, thread: sectionBeat,
+    fragments: sectionFragments, evidence: sectionEvidence,
+    mirror: sectionMirror, surprise: sectionSurprise, resonance: sectionResonance,
+  };
+
   function renderChapterClosing(scene, it) {
     stage.classList.add("dx-scroll");
     scene.classList.add("dx-closingpage");
-    (it.sections || []).forEach(sec => {
-      const block = document.createElement("div");
-      block.className = "dx-close-sec";
-      if (sec.label) {
-        const l = document.createElement("p");
-        l.className = "cs-label";
-        l.textContent = sec.label;
-        block.appendChild(l);
-      }
-      const t = document.createElement("p");
-      t.className = "cs-text";
-      t.textContent = sec.text;
-      block.appendChild(t);
-      scene.appendChild(block);
+    if (it.layout) scene.classList.add("dx-layout-" + it.layout);
+    (it.beats || it.sections || []).forEach(sec => {
+      const builder = SECTION_BUILDERS[sec.kind] || sectionBeat;
+      scene.appendChild(builder(sec));
     });
     const btn = document.createElement("button");
     btn.className = "dx-commit ready dx-close-cta";
@@ -211,7 +348,7 @@
     const io = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("in"); });
     }, { threshold: 0.35 });
-    scene.querySelectorAll(".dx-close-sec, .dx-close-cta").forEach(el => io.observe(el));
+    scene.querySelectorAll(".dx-close-sec, .dx-close-cta, .dx-res-card").forEach(el => io.observe(el));
     btn.addEventListener("click", async () => {
       io.disconnect();
       stage.classList.remove("dx-scroll");
@@ -304,7 +441,7 @@
     scene.appendChild(btn);
     setTimeout(() => btn.classList.add("ready"), 600 + (it.lines || []).length * 1200 + 600);
     btn.addEventListener("click", async () => {
-      const data = await api(`/sessions/${sessionId}/advance`, { to: "DISCOVER_WORKSPACE" });
+      const data = await api(`/sessions/${sessionId}/advance`, { to: it.next || "MATERIALIZATION" });
       handlePayload(data);
     });
   }
@@ -379,6 +516,31 @@
     h.textContent = d.headline;
     wrap.appendChild(h);
 
+    if (d.kind === "live_map") {
+      const sub = document.createElement("p");
+      sub.className = "dx-support";
+      sub.textContent = d.supportingText || "";
+      wrap.appendChild(sub);
+      if (d.changeSummary) {
+        const chg = document.createElement("p");
+        chg.className = "dx-change-note";
+        chg.textContent = d.changeSummary;
+        wrap.appendChild(chg);
+      }
+      if (d.evidenceNote) {
+        const note = document.createElement("p");
+        note.className = "dx-evidence-note";
+        note.textContent = d.evidenceNote;
+        wrap.appendChild(note);
+      }
+      const fresh = document.createElement("p");
+      fresh.className = "dx-freshness";
+      const sigs = Object.entries((d.marketFreshness || {}).signals || {})
+        .map(([k, v]) => `${k.replace(/_/g, " ")}: ${v.label}`).join(" · ");
+      fresh.textContent = `Market evidence — ${(d.marketFreshness || {}).state || "unknown"}${sigs ? " · " + sigs : ""}`;
+      wrap.appendChild(fresh);
+      d = { ...d, kind: "map" };   /* reuse the explainable card grammar below */
+    }
     if (d.kind === "map") {
       const sub = document.createElement("p");
       sub.className = "dx-support";
@@ -396,11 +558,13 @@
           <p class="ess">${esc(l.essence)}</p>
           <dl>
             <dt>Why you</dt><dd>${esc(l.whyYou)}</dd>
+            ${l.whyNow ? `<dt>Why now</dt><dd>${esc(l.whyNow)}</dd>` : ""}
+            ${l.friction ? `<dt>The honest friction</dt><dd>${esc(l.friction)}</dd>` : ""}
             <dt>Why this, honestly</dt><dd>${why}</dd>
             <dt>Missing pieces</dt><dd>${esc(l.requires)}</dd>
             <dt>First experiment</dt><dd>${esc(l.firstExperiment)}</dd>
           </dl>
-          <div class="meta"><span>risk · ${esc(l.risk)}</span><span>${esc(l.timeToValue)}</span><span>confidence ${esc(String(l.confidence))}%</span></div>
+          <div class="meta"><span>risk · ${esc(l.risk)}</span><span>${esc(l.timeToValue)}</span><span>${esc(l.confidenceLabel || ("confidence " + String(l.confidence) + "%"))}</span>${l.evidenceFreshness ? `<span>${esc(l.evidenceFreshness)}</span>` : ""}</div>
           <div class="ws-life-acts">
             <button class="dx-pill" data-act="save">Save</button>
             <button class="dx-pill" data-act="start">Start a first experiment</button>
@@ -513,6 +677,7 @@
     try {
       switch (it.type) {
         case "scenario_choice": renderScenario(scene, it); break;
+        case "clarification": renderScenario(scene, it); break;
         case "binary_tension":
         case "spectrum": renderSlider(scene, it); break;
         case "forced_rank":
@@ -582,6 +747,7 @@
     switch (it.type) {
       case "visual_choice": return renderVisual(scene, it);
       case "scenario_choice": return renderScenario(scene, it);
+      case "clarification": return renderScenario(scene, it);
       case "binary_tension":
       case "spectrum": return renderSlider(scene, it);
       case "forced_rank":
@@ -811,73 +977,241 @@
     scene.appendChild(pills);
   }
 
+  /* ---- Final Mirror: scroll-paced, evidence beats, no prescription ---- */
+
   function renderFinal(scene, it) {
-    scene.classList.add("dx-final");
-    const opening = document.createElement("div");
-    opening.className = "dx-reveal-lines";
-    (it.opening || []).forEach((line, i) => {
-      const p = document.createElement("p");
-      p.className = "dx-reveal-line";
-      p.textContent = line;
-      opening.appendChild(p);
-      setTimeout(() => p.classList.add("in"), 500 + i * 1100);
-    });
-    scene.appendChild(opening);
-    const baseDelay = 500 + (it.opening || []).length * 1100 + 600;
+    stage.classList.add("dx-scroll");
+    scene.classList.add("dx-final", "dx-finalpage");
 
     const mirror = document.createElement("div");
     mirror.className = "dx-mirror";
-    (it.mirror || []).forEach((m, i) => {
+    (it.beats || it.mirror || []).forEach(m => {
       const item = document.createElement("div");
-      item.className = "dx-mirror-item";
+      item.className = "dx-mirror-item dx-close-sec";
       item.innerHTML = `<p class="lbl">${esc(m.label)}</p><p class="txt">${esc(m.text)}</p>`;
       mirror.appendChild(item);
-      setTimeout(() => item.classList.add("in"), baseDelay + i * 700);
     });
     scene.appendChild(mirror);
 
-    const mapDelay = baseDelay + (it.mirror || []).length * 700 + 600;
-    if (it.map && it.map.length) {
-      const mapWrap = document.createElement("div");
-      mapWrap.className = "dx-lives";
-      mapWrap.style.opacity = "0";
-      mapWrap.style.transition = "opacity 1.2s ease";
-      it.map.forEach(l => {
-        const card = document.createElement("div");
-        card.className = "dx-life";
-        card.style.cursor = "default";
-        card.innerHTML = `
-          <h3>${esc(l.name)}</h3>
-          <p class="ess">${esc(l.essence)}</p>
-          <dl>
-            <dt>Existing advantages</dt><dd>${esc(l.uses)}</dd>
-            <dt>Missing pieces</dt><dd>${esc(l.requires)}</dd>
-            <dt>First experiment</dt><dd>${esc(l.firstExperiment)}</dd>
-          </dl>
-          <div class="meta"><span>risk · ${esc(l.risk)}</span><span>${esc(l.timeToValue)}</span><span>confidence ${esc(String(l.confidence))}%</span></div>`;
-        mapWrap.appendChild(card);
-      });
-      scene.appendChild(mapWrap);
-      setTimeout(() => { mapWrap.style.opacity = "1"; }, mapDelay);
-    }
-
-    const next = document.createElement("div");
-    next.className = "dx-next";
-    next.style.opacity = "0";
-    next.style.transition = "opacity 1.2s ease";
-    next.innerHTML = `
-      <p class="lbl">${esc(it.nextAction?.headline || "One small next step")}</p>
-      <p class="txt">${esc(it.nextAction?.text || "")}</p>
-      <p class="note">${esc(it.nextAction?.note || "")}</p>`;
-    scene.appendChild(next);
-    setTimeout(() => { next.style.opacity = "1"; }, mapDelay + 900);
+    const closing = document.createElement("div");
+    closing.className = "dx-final-closing";
+    (it.closing || []).forEach(line => {
+      const p = document.createElement("p");
+      p.className = "dx-close-sec cs-text";
+      p.textContent = line;
+      closing.appendChild(p);
+    });
+    scene.appendChild(closing);
 
     const done = document.createElement("button");
-    done.className = "dx-commit dx-continue";
-    done.textContent = "Continue →";
+    done.className = "dx-commit ready dx-close-cta";
+    done.textContent = it.cta || "See what this can become →";
     scene.appendChild(done);
-    setTimeout(() => done.classList.add("ready"), mapDelay + 1200);
-    done.addEventListener("click", () => respond(it.id, { done: true }));
+
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("in"); });
+    }, { threshold: 0.3 });
+    scene.querySelectorAll(".dx-close-sec, .dx-close-cta").forEach(el => io.observe(el));
+    done.addEventListener("click", () => {
+      io.disconnect();
+      stage.classList.remove("dx-scroll");
+      respond(it.id, { done: true });
+    }, { once: true });
+  }
+
+  /* ---- Materialization: the story becomes objects you can act on ---- */
+
+  async function objectStatus(kind, key, status, reason) {
+    try {
+      return await api(`/sessions/${sessionId}/objects/status`, { kind, key, status, reason });
+    } catch (e) { return null; }
+  }
+
+  function matSection(title, note) {
+    const s = document.createElement("section");
+    s.className = "dx-mat-sec dx-close-sec";
+    s.innerHTML = `<h3 class="dx-mat-h">${esc(title)}</h3>` +
+      (note ? `<p class="dx-mat-note">${esc(note)}</p>` : "");
+    return s;
+  }
+
+  function renderMaterialization(scene, it) {
+    stage.classList.add("dx-scroll");
+    scene.classList.add("dx-matpage");
+
+    /* bridge from story to product — continuity, not a dashboard drop */
+    const intro = document.createElement("div");
+    intro.className = "dx-mat-intro";
+    (it.intro || []).forEach(line => {
+      const p = document.createElement("p");
+      p.className = "dx-close-sec cs-text";
+      p.textContent = line;
+      intro.appendChild(p);
+    });
+    scene.appendChild(intro);
+
+    /* YOUR PICTURE */
+    const pos = it.position || {};
+    if ((pos.context || []).length || (pos.evidence || []).length) {
+      const s = matSection(pos.heading || "Where you stand");
+      const rows = document.createElement("div");
+      rows.className = "dx-mat-rows";
+      [...(pos.context || []), ...(pos.evidence || [])].forEach(r => {
+        const row = document.createElement("div");
+        row.className = "dx-ev-row";
+        row.innerHTML = `<span class="dx-ev-label"></span><span class="dx-ev-value"></span>`;
+        row.querySelector(".dx-ev-label").textContent = r.label;
+        row.querySelector(".dx-ev-value").textContent = r.value;
+        rows.appendChild(row);
+      });
+      s.appendChild(rows);
+      if ((pos.unclear || []).length) {
+        const u = document.createElement("p");
+        u.className = "dx-mat-unclear";
+        u.textContent = "Still unclear: " + pos.unclear.join(" · ");
+        s.appendChild(u);
+      }
+      scene.appendChild(s);
+    }
+
+    /* CAPABILITIES */
+    if ((it.capabilities || []).length) {
+      const s = matSection("What you can actually do", "Capabilities, with what supports each one.");
+      const grid = document.createElement("div");
+      grid.className = "dx-mat-grid";
+      it.capabilities.forEach(c => {
+        const card = document.createElement("div");
+        card.className = "dx-mat-card";
+        card.innerHTML = `
+          <div class="dx-mat-top"><span class="dx-mat-name">${esc(c.label)}</span>
+            <span class="dx-mat-strength">${esc(c.strength)}</span></div>
+          <p class="dx-mat-support">from ${esc((c.supportedBy || []).join(", "))}</p>`;
+        grid.appendChild(card);
+      });
+      s.appendChild(grid);
+      scene.appendChild(s);
+    }
+
+    /* YOUR LEVERAGE */
+    if ((it.leverage || []).length) {
+      const s = matSection("What's already compounding", "You may not need to start from zero.");
+      const grid = document.createElement("div");
+      grid.className = "dx-mat-grid";
+      it.leverage.forEach(l => {
+        const card = document.createElement("div");
+        card.className = "dx-mat-card dx-mat-lev";
+        card.innerHTML = `
+          <div class="dx-mat-top"><span class="dx-mat-name">${esc(l.label)}</span></div>
+          <p class="dx-mat-support">${esc(l.note)}</p>
+          <p class="dx-mat-basis">${esc(l.basis)}</p>`;
+        grid.appendChild(card);
+      });
+      s.appendChild(grid);
+      scene.appendChild(s);
+    }
+
+    /* WHAT IS STILL MISSING */
+    if ((it.gaps || []).length) {
+      const s = matSection("What would change the picture", "Not deficiencies — missing information.");
+      const list = document.createElement("div");
+      list.className = "dx-mat-gaps";
+      it.gaps.forEach(g => {
+        const row = document.createElement("div");
+        row.className = "dx-mat-gap";
+        row.innerHTML = `<p class="dx-gap-label">${esc(g.label)}</p>
+          <p class="dx-gap-why">${esc(g.why)}</p>`;
+        list.appendChild(row);
+      });
+      s.appendChild(list);
+      scene.appendChild(s);
+    }
+
+    /* DIRECTIONS + their experiments */
+    if ((it.directions || []).length) {
+      const s = matSection("Directions worth examining",
+                           "Not predictions. Each one shows why it appeared and the cheapest way to test it.");
+      const row = document.createElement("div");
+      row.className = "dx-lives dx-mat-directions";
+      it.directions.forEach(d => {
+        const card = document.createElement("div");
+        card.className = "dx-life";
+        card.dataset.key = d.key;
+        const have = (d.whatYouHave || []).join(", ");
+        const missing = (d.missing || []).join(", ");
+        card.innerHTML = `
+          <h3>${esc(d.label)}</h3>
+          <dl>
+            <dt>Why this appeared</dt><dd>${esc(d.whyThisAppeared)}</dd>
+            ${have ? `<dt>What you already have</dt><dd>${esc(have)}</dd>` : ""}
+            ${missing ? `<dt>What's missing</dt><dd>${esc(missing)}</dd>` : ""}
+            <dt>What makes it realistic</dt><dd>${esc(d.whatMakesItRealistic)}</dd>
+            <dt>What makes it risky</dt><dd>${esc(d.whatMakesItRisky)}</dd>
+            <dt>Market evidence</dt><dd>${esc(d.marketEvidence)}</dd>
+            <dt>Cheapest way to test it</dt><dd>${esc(d.experiment?.action || "")}<br>
+              <span class="dx-teaches">Tells you ${esc(d.experiment?.teaches || "")} · ${esc(d.experiment?.effort || "")}</span></dd>
+          </dl>
+          <div class="meta"><span>${esc(d.confidenceLabel)}</span>${
+            typeof d.evidenceFreshness === "number" ? `<span>evidence ${esc(String(d.evidenceFreshness))}d old</span>` : ""}</div>
+          <div class="ws-life-acts">
+            <button class="dx-pill" data-act="save">Save</button>
+            <button class="dx-pill" data-act="test">Test this</button>
+            <button class="dx-pill dx-pill-quiet" data-act="dismiss">Not for me</button>
+          </div>`;
+        card.querySelector('[data-act="save"]').addEventListener("click", async e => {
+          e.target.classList.add("picked"); e.target.textContent = "Saved";
+          await objectStatus("direction", d.key, "saved");
+        });
+        card.querySelector('[data-act="test"]').addEventListener("click", async e => {
+          e.target.classList.add("picked"); e.target.textContent = "Testing";
+          try { await api(`/sessions/${sessionId}/experiments/${encodeURIComponent(d.key)}/start`, {}); }
+          catch (err) { /* best effort */ }
+        });
+        card.querySelector('[data-act="dismiss"]').addEventListener("click", async e => {
+          card.classList.add("dismissed");
+          await objectStatus("direction", d.key, "dismissed", "not relevant");
+        });
+        row.appendChild(card);
+      });
+      s.appendChild(row);
+      scene.appendChild(s);
+    }
+
+    /* PRODUCT ROUTES — need first, product only as the answer to it */
+    (it.productRoutes || []).forEach(r => {
+      const s = document.createElement("section");
+      s.className = "dx-mat-sec dx-close-sec dx-route";
+      s.innerHTML = `
+        <p class="dx-route-because">${esc(r.because)}</p>
+        <p class="dx-route-gap">${esc(r.gap)}</p>
+        <p class="dx-route-help">${esc(r.help)}</p>
+        <p class="dx-route-optional">${esc(r.optional)}</p>`;
+      const b = document.createElement("button");
+      b.className = "dx-pill";
+      b.textContent = "Show me how →";
+      b.addEventListener("click", async () => {
+        b.classList.add("picked");
+        try { await api(`/sessions/${sessionId}/product-routes/${r.id}/accept`, {}); }
+        catch (e) { /* best effort */ }
+      });
+      s.appendChild(b);
+      scene.appendChild(s);
+    });
+
+    const cta = document.createElement("button");
+    cta.className = "dx-commit ready dx-close-cta";
+    cta.textContent = it.cta || "Enter your Discover space →";
+    scene.appendChild(cta);
+
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add("in"); });
+    }, { threshold: 0.2 });
+    scene.querySelectorAll(".dx-close-sec, .dx-life").forEach(el => io.observe(el));
+    cta.addEventListener("click", async () => {
+      io.disconnect();
+      stage.classList.remove("dx-scroll");
+      const data = await api(`/sessions/${sessionId}/advance`, { to: it.next || "DISCOVER_WORKSPACE" });
+      handlePayload(data);
+    }, { once: true });
   }
 
   function esc(s) {

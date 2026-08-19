@@ -4,6 +4,7 @@ from app.signals import apply_evidence, top_dims, total_evidence
 
 class FakeDB:
     def add(self, _): pass
+    def flush(self): pass
 
 
 def make_session():

@@ -330,3 +330,619 @@ class LLMCall(Base):
     est_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     success: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+# ---------- narrative (storytelling state, never psychology) ----------
+
+class NarrativeSessionState(Base):
+    """One row per session: everything the Narrative Director remembers.
+    Exists only to prevent repetitive storytelling and create continuity."""
+    __tablename__ = "narrative_states"
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), primary_key=True)
+    chapter: Mapped[str] = mapped_column(String(30), default="SELF_DISCOVERY")
+    emotional_phase: Mapped[str] = mapped_column(String(20), default="curiosity")  # curiosity|recognition|grounding|synthesis
+    story_beats_shown: Mapped[list] = mapped_column(JSON, default=list)        # [{intent, text, chapter}]
+    observations_shown: Mapped[list] = mapped_column(JSON, default=list)
+    metaphors_used: Mapped[list] = mapped_column(JSON, default=list)
+    transition_patterns_used: Mapped[list] = mapped_column(JSON, default=list)
+    sentence_openings_used: Mapped[dict] = mapped_column(JSON, default=dict)   # {opening: count}
+    sentence_shapes_used: Mapped[dict] = mapped_column(JSON, default=dict)     # {shape: count}
+    tics_used: Mapped[dict] = mapped_column(JSON, default=dict)                # {tic: count}
+    public_figure_matches_shown: Mapped[list] = mapped_column(JSON, default=list)  # figure ids
+    surprises_shown: Mapped[list] = mapped_column(JSON, default=list)          # surprise format keys
+    threads: Mapped[list] = mapped_column(JSON, default=list)                  # NarrativeThread dicts
+    recent_copy: Mapped[list] = mapped_column(JSON, default=list)
+    chapter_closing_style_history: Mapped[list] = mapped_column(JSON, default=list)
+    pending_event: Mapped[dict | None] = mapped_column(JSON, nullable=True)    # the actual thing that just changed
+    next_narrative_intent: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    rejected_copy_log: Mapped[list] = mapped_column(JSON, default=list)        # [{text, reasons}] for the inspector
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+# ---------- public figure knowledge base (verified, sourced, versioned) ----------
+
+class PublicFigure(Base):
+    __tablename__ = "public_figures"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    primary_domains: Mapped[list] = mapped_column(JSON, default=list)
+    professional_roles: Mapped[list] = mapped_column(JSON, default=list)   # builder|operator|researcher|creator|leader|entrepreneur|engineer|scientist
+    evidence_quality: Mapped[float] = mapped_column(Float, default=0.5)    # aggregate source quality 0..1
+    record_version: Mapped[int] = mapped_column(Integer, default=1)
+    last_verified_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    status: Mapped[str] = mapped_column(String(20), default="active")      # active | archived
+
+
+class PublicFigureAlias(Base):
+    __tablename__ = "public_figure_aliases"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    figure_id: Mapped[str] = mapped_column(ForeignKey("public_figures.id"), index=True)
+    alias: Mapped[str] = mapped_column(String(120))
+
+
+class PublicFigureSource(Base):
+    __tablename__ = "public_figure_sources"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    figure_id: Mapped[str] = mapped_column(ForeignKey("public_figures.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(40))          # interview|speech|biography|book|talk|company_material|profile
+    title: Mapped[str] = mapped_column(String(240))
+    publisher: Mapped[str] = mapped_column(String(120), default="")
+    url: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    published_at: Mapped[str | None] = mapped_column(String(20), nullable=True)  # ISO date or year
+    credibility: Mapped[float] = mapped_column(Float, default=0.6)               # 0..1, curated
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class PublicFigureEvidence(Base):
+    __tablename__ = "public_figure_evidence"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    figure_id: Mapped[str] = mapped_column(ForeignKey("public_figures.id"), index=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("public_figure_sources.id"))
+    claim: Mapped[str] = mapped_column(Text)               # narrow, documented professional fact
+    review_status: Mapped[str] = mapped_column(String(20), default="approved")  # extracted|approved|rejected
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class PublicFigurePattern(Base):
+    __tablename__ = "public_figure_patterns"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    figure_id: Mapped[str] = mapped_column(ForeignKey("public_figures.id"), index=True)
+    construct: Mapped[str] = mapped_column(String(40))     # approved taxonomy (resonance.CONSTRUCTS)
+    description: Mapped[str] = mapped_column(Text)         # short sourced professional behavior
+    evidence_refs: Mapped[list] = mapped_column(JSON, default=list)  # PublicFigureEvidence ids — mandatory
+    confidence: Mapped[float] = mapped_column(Float, default=0.6)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class PublicFigureEmbedding(Base):
+    __tablename__ = "public_figure_embeddings"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    figure_id: Mapped[str] = mapped_column(ForeignKey("public_figures.id"), index=True)
+    pattern_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    vector: Mapped[list] = mapped_column(JSON, default=list)   # construct-space vector (pgvector native in prod migration)
+    embedding_version: Mapped[str] = mapped_column(String(20), default="construct_v1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class PublicFigureVersion(Base):
+    __tablename__ = "public_figure_versions"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    figure_id: Mapped[str] = mapped_column(ForeignKey("public_figures.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    snapshot: Mapped[dict] = mapped_column(JSON, default=dict)  # full record at this version
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class PublicFigureMatchFeedback(Base):
+    __tablename__ = "public_figure_match_feedback"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    figure_id: Mapped[str] = mapped_column(String(60), index=True)
+    pattern_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    verdict: Mapped[str] = mapped_column(String(20))       # see_it | not_sure | not_relevant
+    chapter: Mapped[str] = mapped_column(String(30))
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), default="")  # user evidence at feedback time
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class ResonanceSnapshot(Base):
+    """What the matching pipeline returned at a chapter boundary — the substrate
+    for 'the matches moved' storytelling and for match-evolution tests."""
+    __tablename__ = "resonance_snapshots"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    chapter: Mapped[str] = mapped_column(String(30))
+    matches: Mapped[list] = mapped_column(JSON, default=list)      # [{figureId, patternId, construct, score, strength, userEvidence}]
+    candidates_considered: Mapped[list] = mapped_column(JSON, default=list)  # inspector: why selected / rejected
+    user_feature_fingerprint: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+# ---------- intelligence core: evidence ledger + hypotheses ----------
+# Four levels of knowledge, kept apart in state: explicit/derived FACTS live in
+# practical_context (with provenance in evidence_items), HYPOTHESES are rows
+# here with evidence links, and ACTIONABLE CONCLUSIONS exist only downstream
+# once thresholds are met. Nothing important without evidence ids.
+
+class EvidenceItem(Base):
+    __tablename__ = "evidence_items"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(40))   # explicit_fact | behavioral_choice | professional_history
+                                                    # | free_text_extraction | calibration | correction | outcome
+    claim: Mapped[str] = mapped_column(Text)
+    dims: Mapped[list] = mapped_column(JSON, default=list)          # dimensions this bears on (signed)
+    source_interaction_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    strength: Mapped[float] = mapped_column(Float, default=0.4)
+    reliability: Mapped[float] = mapped_column(Float, default=0.6)  # explicit > calibration > behavioral > extraction
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class Hypothesis(Base):
+    __tablename__ = "hypotheses"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    construct: Mapped[str] = mapped_column(String(60))              # dimension or professional construct
+    direction: Mapped[int] = mapped_column(Integer, default=1)      # which pole the hypothesis claims
+    statement: Mapped[str] = mapped_column(Text, default="")
+    supporting_evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
+    contradicting_evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[str] = mapped_column(String(20), default="emerging")
+    # emerging | supported | uncertain | contradicted | corrected
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    thresholds_version: Mapped[str] = mapped_column(String(20), default="thresh_v1")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+    __table_args__ = (Index("uq_hypothesis_construct", "session_id", "construct", "direction", unique=True),)
+
+
+class HypothesisVersion(Base):
+    """Never overwrite silently — the story needs to show its own revisions."""
+    __tablename__ = "hypothesis_versions"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    hypothesis_id: Mapped[str] = mapped_column(ForeignKey("hypotheses.id"), index=True)
+    session_id: Mapped[str] = mapped_column(String(32), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    confidence: Mapped[float] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(20))
+    trigger: Mapped[str] = mapped_column(String(60), default="")    # what caused this revision
+    chapter: Mapped[str] = mapped_column(String(30), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AmbiguityRecord(Base):
+    """Detected but deliberately unresolved understanding gaps. Ambiguity is
+    never itself treated as psychological signal (PART 62)."""
+    __tablename__ = "ambiguities"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    key: Mapped[str] = mapped_column(String(60))                    # e.g. "manage_software_scope"
+    description: Mapped[str] = mapped_column(Text)
+    possible_interpretations: Mapped[list] = mapped_column(JSON, default=list)
+    source_text: Mapped[str] = mapped_column(Text, default="")
+    clarification_value: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[str] = mapped_column(String(20), default="open") # open | clarified | abandoned
+    resolution: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class InferenceFeedback(Base):
+    """User said an analysis was wrong — proprietary calibration training data."""
+    __tablename__ = "inference_feedback"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    hypothesis_construct: Mapped[str] = mapped_column(String(60))
+    supporting_evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
+    rejection: Mapped[str] = mapped_column(String(30))              # not_really | kind_of | not_relevant
+    context: Mapped[dict] = mapped_column(JSON, default=dict)
+    policy_version: Mapped[str] = mapped_column(String(40), default="")
+    thresholds_version: Mapped[str] = mapped_column(String(20), default="thresh_v1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class NarrativeEvent(Base):
+    """Story exists only when something changed. Beats derive from these."""
+    __tablename__ = "narrative_events"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    type: Mapped[str] = mapped_column(String(50))
+    # NEW_FACT_CHANGED_MODEL | HYPOTHESIS_STRENGTHENED | HYPOTHESIS_COLLAPSED |
+    # CONTRADICTION_APPEARED | CONTRADICTION_RESOLVED | USER_CORRECTED_SYSTEM |
+    # PROFESSIONAL_CONTEXT_CHANGED_PICTURE | OLD_ANSWER_BECAME_RELEVANT |
+    # EXPECTED_PATTERN_DID_NOT_APPEAR | PUBLIC_RESONANCE_CHANGED | CHAPTER_OBJECTIVE_REACHED
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    importance: Mapped[float] = mapped_column(Float, default=0.5)
+    chapter: Mapped[str] = mapped_column(String(30), default="")
+    consumed_by_closing: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class ChapterClosingPlan(Base):
+    """Every closing has a recorded purpose; a closing that cannot answer
+    'why this structure / what changed' is generic and must not exist."""
+    __tablename__ = "chapter_closing_plans"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    chapter: Mapped[str] = mapped_column(String(30))
+    selected_structure: Mapped[str] = mapped_column(String(40))
+    available_events: Mapped[list] = mapped_column(JSON, default=list)
+    why_this_closing: Mapped[str] = mapped_column(Text, default="")
+    what_changed: Mapped[str] = mapped_column(Text, default="")
+    evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
+    open_thread: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+# ---------- world intelligence: canonical ontology ----------
+# WORLD knowledge is independent of any user. It is ingested, versioned and
+# refreshed — never generated per user, never authored by the LLM at runtime.
+
+class WIOccupation(Base):
+    __tablename__ = "occupations"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)     # occupation_unbify_*
+    preferred_label: Mapped[str] = mapped_column(String(120))
+    description: Mapped[str] = mapped_column(Text, default="")
+    labels_i18n: Mapped[dict] = mapped_column(JSON, default=dict)     # {lang: [labels]}
+    work_class: Mapped[str] = mapped_column(String(30), default="knowledge")  # knowledge|trade|clinical|field|service|creative|operational|mixed
+    physical_environment: Mapped[list] = mapped_column(JSON, default=list)
+    pathway_potentials: Mapped[list] = mapped_column(JSON, default=list)  # employment|specialization|contracting|business_ownership|consulting|training|advisory|part_time|...
+    regulated: Mapped[bool] = mapped_column(Boolean, default=False)
+    self_employment_prevalence: Mapped[float] = mapped_column(Float, default=0.3)
+    ai_automation_exposure: Mapped[float] = mapped_column(Float, default=0.3)
+    ai_augmentation_potential: Mapped[float] = mapped_column(Float, default=0.5)
+    definition_version: Mapped[int] = mapped_column(Integer, default=1)
+    definition_updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+
+
+class WIOccupationAlias(Base):
+    __tablename__ = "occupation_aliases"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    occupation_id: Mapped[str] = mapped_column(ForeignKey("occupations.id"), index=True)
+    alias: Mapped[str] = mapped_column(String(120), index=True)
+    language: Mapped[str] = mapped_column(String(10), default="en")
+    region: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+
+class WIOccupationExternalMapping(Base):
+    __tablename__ = "occupation_external_mappings"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    occupation_id: Mapped[str] = mapped_column(ForeignKey("occupations.id"), index=True)
+    scheme: Mapped[str] = mapped_column(String(30))       # onet | esco | isco | nco | other
+    external_id: Mapped[str] = mapped_column(String(120))
+    mapping_confidence: Mapped[float] = mapped_column(Float, default=0.9)
+
+
+class WICapability(Base):
+    __tablename__ = "capabilities"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    label: Mapped[str] = mapped_column(String(120))
+    kind: Mapped[str] = mapped_column(String(30), default="capability")   # capability | skill | tool
+    description: Mapped[str] = mapped_column(Text, default="")
+
+
+class WIOccupationCapability(Base):
+    __tablename__ = "occupation_capabilities"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    occupation_id: Mapped[str] = mapped_column(ForeignKey("occupations.id"), index=True)
+    capability_id: Mapped[str] = mapped_column(ForeignKey("capabilities.id"), index=True)
+    relation: Mapped[str] = mapped_column(String(20), default="requires")  # requires | uses | develops
+    weight: Mapped[float] = mapped_column(Float, default=0.6)
+
+
+class WIOccupationTransition(Base):
+    __tablename__ = "occupation_transitions"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    from_occupation_id: Mapped[str] = mapped_column(ForeignKey("occupations.id"), index=True)
+    to_occupation_id: Mapped[str] = mapped_column(ForeignKey("occupations.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(30), default="transition")  # specialization | transition | independent_practice
+    evidence_note: Mapped[str] = mapped_column(Text, default="")
+    strength: Mapped[float] = mapped_column(Float, default=0.5)
+
+
+class WIIndustry(Base):
+    __tablename__ = "industries"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    label: Mapped[str] = mapped_column(String(120))
+
+
+class WIProblem(Base):
+    """What are people/companies paying to solve? Feeds entrepreneurial and
+    consulting directions — never random startup ideas."""
+    __tablename__ = "problems"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    label: Mapped[str] = mapped_column(String(200))
+    industries: Mapped[list] = mapped_column(JSON, default=list)
+    solved_by_capabilities: Mapped[list] = mapped_column(JSON, default=list)
+    evidence_note: Mapped[str] = mapped_column(Text, default="")
+
+
+class WILicenseRequirement(Base):
+    __tablename__ = "license_requirements"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    occupation_id: Mapped[str] = mapped_column(ForeignKey("occupations.id"), index=True)
+    jurisdiction: Mapped[str] = mapped_column(String(60), default="*")
+    requirement: Mapped[str] = mapped_column(String(200))
+    restricted_activities: Mapped[list] = mapped_column(JSON, default=list)
+    source_note: Mapped[str] = mapped_column(Text, default="")
+
+
+# ---------- world intelligence: ingestion + sources ----------
+
+class WISource(Base):
+    __tablename__ = "intelligence_sources"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    type: Mapped[str] = mapped_column(String(30))         # official_taxonomy|government|job_board|community|...
+    country_coverage: Mapped[list] = mapped_column(JSON, default=list)
+    access_method: Mapped[str] = mapped_column(String(30))  # api|dataset|rss|licensed_feed|permitted_crawl|manual
+    refresh_policy: Mapped[str] = mapped_column(String(60), default="weekly")
+    ttl_hours: Mapped[int] = mapped_column(Integer, default=168)
+    allowed_uses: Mapped[list] = mapped_column(JSON, default=list)
+    attribution_required: Mapped[bool] = mapped_column(Boolean, default=False)
+    license_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    trust_score: Mapped[float] = mapped_column(Float, default=0.5)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # compliance is mandatory before any ingestion happens
+    compliance: Mapped[dict] = mapped_column(JSON, default=dict)
+    # {terms_reviewed, crawl_policy_reviewed, license_known, storage_permitted,
+    #  usage_known, retention_rules}
+    cost_stats: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class WIApifyActorConfig(Base):
+    __tablename__ = "apify_actor_configs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    source_id: Mapped[str] = mapped_column(ForeignKey("intelligence_sources.id"), index=True)
+    actor_id: Mapped[str] = mapped_column(String(120))
+    actor_version: Mapped[str] = mapped_column(String(30), default="latest")
+    input_template: Mapped[dict] = mapped_column(JSON, default=dict)
+    dataset_schema_version: Mapped[str] = mapped_column(String(20), default="v1")
+    refresh_strategy: Mapped[str] = mapped_column(String(30), default="weekly")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class WIIngestionRun(Base):
+    __tablename__ = "intelligence_ingestion_runs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    source_id: Mapped[str] = mapped_column(String(60), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="started")  # started|completed|failed|partial
+    record_count: Mapped[int] = mapped_column(Integer, default=0)
+    deduplicated_count: Mapped[int] = mapped_column(Integer, default=0)
+    validation_failures: Mapped[int] = mapped_column(Integer, default=0)
+    quality: Mapped[dict] = mapped_column(JSON, default=dict)
+    normalization_version: Mapped[str] = mapped_column(String(20), default="norm_v1")
+    extractor_version: Mapped[str] = mapped_column(String(20), default="ext_v1")
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class WISourceObservation(Base):
+    """Raw external evidence never becomes truth directly — it becomes an
+    observation, and observations aggregate into market signals."""
+    __tablename__ = "source_observations"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    source_id: Mapped[str] = mapped_column(String(60), index=True)
+    ingestion_run_id: Mapped[str] = mapped_column(String(32), index=True)
+    external_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)  # change detection / dedupe
+    observed_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    geography: Mapped[str] = mapped_column(String(60), default="*")   # country|state|metro|city|remote
+    geography_level: Mapped[str] = mapped_column(String(20), default="country")
+    occupation_refs: Mapped[list] = mapped_column(JSON, default=list)
+    skills: Mapped[list] = mapped_column(JSON, default=list)
+    signal_type: Mapped[str] = mapped_column(String(40))
+    value: Mapped[dict] = mapped_column(JSON, default=dict)
+    source_quality: Mapped[float] = mapped_column(Float, default=0.5)
+    raw_reference: Mapped[str | None] = mapped_column(String(400), nullable=True)
+
+
+class WIMarketSignal(Base):
+    __tablename__ = "market_signals"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    occupation_id: Mapped[str] = mapped_column(String(60), index=True)
+    construct: Mapped[str] = mapped_column(String(40))    # demand_direction|posting_volume|self_employment_prevalence|...
+    geography: Mapped[str] = mapped_column(String(60), default="*")
+    geography_level: Mapped[str] = mapped_column(String(20), default="country")
+    value: Mapped[float] = mapped_column(Float, default=0.0)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    source_count: Mapped[int] = mapped_column(Integer, default=0)
+    source_diversity: Mapped[int] = mapped_column(Integer, default=0)
+    evidence_refs: Mapped[list] = mapped_column(JSON, default=list)   # observation ids
+    conflicts: Mapped[list] = mapped_column(JSON, default=list)       # disagreeing source classes, retained
+    window_start: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    window_end: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    snapshot_version: Mapped[str] = mapped_column(String(40), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class WITargetedRefreshRequest(Base):
+    """Privacy boundary: only generic market queries leave UNBIFY — never a
+    user's identity, answers, or psychological signals."""
+    __tablename__ = "targeted_refresh_requests"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    occupation_id: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    query_terms: Mapped[list] = mapped_column(JSON, default=list)
+    geography: Mapped[str] = mapped_column(String(60), default="*")
+    reason: Mapped[str] = mapped_column(String(60), default="stale")  # stale|coverage_gap|domain_enrichment
+    status: Mapped[str] = mapped_column(String(20), default="queued")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class WIOpportunitySnapshot(Base):
+    """Exactly which intelligence produced a recommendation — reproducible,
+    never silently mutated."""
+    __tablename__ = "opportunity_market_snapshots"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(String(32), index=True)
+    recommendation_set_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    profile_version_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    market_snapshot_version: Mapped[str] = mapped_column(String(40))
+    ranking_model_version: Mapped[str] = mapped_column(String(40))
+    candidates: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+# ---------- materialization: story meaning -> material objects ----------
+
+class MaterialObject(Base):
+    """A tangible thing produced from the journey: a capability, a leverage
+    asset, a gap, a direction, or an experiment. Users can save these, and
+    they persist beyond one session."""
+    __tablename__ = "material_objects"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(30), index=True)
+    # capability | leverage | gap | direction | experiment | insight | question
+    key: Mapped[str] = mapped_column(String(120))          # stable per-session identity
+    label: Mapped[str] = mapped_column(String(200))
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+    evidence_ids: Mapped[list] = mapped_column(JSON, default=list)   # EvidenceItem ids — provenance
+    strength: Mapped[float] = mapped_column(Float, default=0.5)
+    saved: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[str] = mapped_column(String(20), default="new")
+    # new | exploring | saved | testing | active | dismissed | completed
+    dismissal_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    materialization_version: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+    __table_args__ = (Index("uq_material_key", "session_id", "kind", "key", unique=True),)
+
+
+class ExperimentRun(Base):
+    """A cheap, specific test of one direction — and what actually happened.
+    Outcomes are far stronger evidence than early questionnaire answers."""
+    __tablename__ = "experiment_runs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    material_object_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    direction_key: Mapped[str] = mapped_column(String(120))
+    action: Mapped[str] = mapped_column(Text)
+    teaches: Mapped[str] = mapped_column(Text, default="")     # the uncertainty it resolves
+    effort: Mapped[str] = mapped_column(String(40), default="")
+    status: Mapped[str] = mapped_column(String(20), default="started")  # started | completed | abandoned
+    outcome: Mapped[dict] = mapped_column(JSON, default=dict)  # {verdict, note, earned, continued}
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class ProductRouteRecord(Base):
+    """Product routing is evidence-based infrastructure, never a banner.
+    A route without a complete need→evidence→gap→capability chain is not shown."""
+    __tablename__ = "product_routes"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    capability: Mapped[str] = mapped_column(String(30))   # career|marketplace|agency|suite|brain
+    reason_codes: Mapped[list] = mapped_column(JSON, default=list)
+    prerequisite_states: Mapped[list] = mapped_column(JSON, default=list)
+    relevance_score: Mapped[float] = mapped_column(Float, default=0.0)
+    explanation_evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
+    user_need: Mapped[str] = mapped_column(Text, default="")
+    gap: Mapped[str] = mapped_column(Text, default="")
+    shown_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    accepted: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class MaterializationSnapshot(Base):
+    """What Materialization produced, and from which intelligence versions."""
+    __tablename__ = "materialization_snapshots"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    profile_version_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    recommendation_set_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+# ---------- PostgreSQL as the operational backbone: jobs, locks, coverage ----------
+# No Redis, no external queue. Workers claim jobs with FOR UPDATE SKIP LOCKED.
+
+class IntelligenceJob(Base):
+    __tablename__ = "intelligence_jobs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    job_type: Mapped[str] = mapped_column(String(40), index=True)
+    # targeted_refresh | deep_refresh | normalize_dataset | domain_enrichment | broad_refresh
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    # pending | running | completed | failed | cancelled
+    scope: Mapped[dict] = mapped_column(JSON, default=dict)
+    scope_hash: Mapped[str] = mapped_column(String(64), index=True, default="")
+    priority: Mapped[int] = mapped_column(Integer, default=100)   # lower runs first
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    apify_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    result_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class IntelligenceScopeCache(Base):
+    """One row per (occupation, geography, intent, source family). Concurrent
+    identical requests reuse the in-flight refresh instead of each firing one."""
+    __tablename__ = "intelligence_scope_cache"
+    scope_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    occupation_id: Mapped[str | None] = mapped_column(String(60), nullable=True, index=True)
+    geography: Mapped[str] = mapped_column(String(60), default="*")
+    intent: Mapped[str] = mapped_column(String(40), default="explore")
+    source_family: Mapped[str] = mapped_column(String(40), default="market")
+    query_terms: Mapped[list] = mapped_column(JSON, default=list)
+    latest_snapshot_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    coverage_score: Mapped[float] = mapped_column(Float, default=0.0)
+    freshness_state: Mapped[str] = mapped_column(String(20), default="INSUFFICIENT")
+    # CURRENT | REFRESHING | PARTIAL | STALE_BUT_USABLE | INSUFFICIENT
+    refreshing_job_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_refresh_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class DomainEnrichmentRequest(Base):
+    """Repeated demand from a weakly-covered domain raises its priority, so
+    the world model grows toward the humans who actually arrive."""
+    __tablename__ = "domain_enrichment_requests"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    domain: Mapped[str] = mapped_column(String(120), index=True)
+    geography: Mapped[str] = mapped_column(String(60), default="*")
+    request_count: Mapped[int] = mapped_column(Integer, default=1)
+    current_coverage: Mapped[float] = mapped_column(Float, default=0.0)
+    priority: Mapped[int] = mapped_column(Integer, default=100)
+    last_requested_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    last_enriched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    __table_args__ = (Index("uq_domain_geo", "domain", "geography", unique=True),)
+
+
+class SourceHealth(Base):
+    __tablename__ = "source_health"
+    source_id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    last_success: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_failure: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0)
+    latest_record_count: Mapped[int] = mapped_column(Integer, default=0)
+    data_quality_score: Mapped[float] = mapped_column(Float, default=0.5)
+    total_runs: Mapped[int] = mapped_column(Integer, default=0)
+    total_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    useful_observations: Mapped[int] = mapped_column(Integer, default=0)
+    recommendations_affected: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AnalysisVersion(Base):
+    """Every analysis is computed at request time and recorded with exactly
+    which human/world/ranker versions produced it — never overwritten."""
+    __tablename__ = "analysis_versions"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    action: Mapped[str] = mapped_column(String(60))
+    intent: Mapped[dict] = mapped_column(JSON, default=dict)
+    profile_version_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    market_snapshot_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    ranker_version: Mapped[str] = mapped_column(String(40), default="")
+    scope_hash: Mapped[str] = mapped_column(String(64), default="")
+    freshness_state: Mapped[str] = mapped_column(String(20), default="CURRENT")
+    coverage_score: Mapped[float] = mapped_column(Float, default=0.0)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    supersedes_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    change_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)

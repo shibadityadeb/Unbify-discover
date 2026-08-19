@@ -8,7 +8,9 @@ def test_forward_transitions_valid():
     sm.validate_transition("SELF_DISCOVERY_CLOSING", "REFLECTION")
     sm.validate_transition("TRANSFORMATION", "TRANSFORMATION_CLOSING")
     sm.validate_transition("TRANSFORMATION_CLOSING", "STORY_COMPLETE")
-    sm.validate_transition("STORY_COMPLETE", "DISCOVER_WORKSPACE")
+    # the story ends at STORY_COMPLETE; MATERIALIZATION bridges into the product
+    sm.validate_transition("STORY_COMPLETE", "MATERIALIZATION")
+    sm.validate_transition("MATERIALIZATION", "DISCOVER_WORKSPACE")
 
 
 def test_no_early_workspace():

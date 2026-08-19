@@ -61,9 +61,16 @@ if not settings.is_production:
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         n = seed_opportunities(db)
+        from .figure_kb import seed_figures
+        f = seed_figures(db)
+        from .world.ingestion import seed_ontology, seed_baseline_signals
+        from .world.signals import recompute_signals
+        seed_ontology(db)
+        seed_baseline_signals(db)
+        recompute_signals(db)
         db.commit()
-        if n:
-            log.info("seeded %d opportunities", n)
+        if n or f:
+            log.info("seeded %d opportunities, %d public figures", n, f)
 
 # the experience layer
 app.mount("/", StaticFiles(directory=str(settings.web_dir), html=True), name="web")

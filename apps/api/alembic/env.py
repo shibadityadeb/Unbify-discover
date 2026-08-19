@@ -15,7 +15,12 @@ from app import models  # noqa: F401 — register all tables
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-config.set_main_option("sqlalchemy.url", settings.effective_database_url())
+# use the SAME url preparation as the app: pooler params stripped, credentials
+# percent-encoded, driver pinned — otherwise migrations and runtime disagree
+from app.db import _prepare_url  # noqa: E402
+
+_migration_url, _ = _prepare_url(settings.effective_database_url())
+config.set_main_option("sqlalchemy.url", _migration_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 

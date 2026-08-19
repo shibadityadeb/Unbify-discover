@@ -1,0 +1,145 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_ENV: test
+
+jobs:
+  api:
+    name: API tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r apps/api/requirements.txt
+
+      - name: Run test suite
+        working-directory: apps/api
+        # APP_ENV=test disables the LLM gateway, so the suite exercises
+        # UNBIFY's own intelligence and stays deterministic and offline.
+        run: python -m pytest tests/ -q
+
+  migrations:
+    name: Migrations (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: unbify
+          POSTGRES_PASSWORD: unbify_ci
+          POSTGRES_DB: discover
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U unbify -d discover"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://unbify:unbify_ci@localhost:5432/discover
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r apps/api/requirements.txt
+
+      - name: Upgrade to head
+        working-directory: apps/api
+        run: python -m alembic upgrade head
+
+      - name: Downgrade to base and back (migrations must be reversible)
+        working-directory: apps/api
+        run: |
+          python -m alembic downgrade base
+          python -m alembic upgrade head
+
+      - name: Seed the database
+        working-directory: apps/api
+        run: python -m app.seed
+
+      - name: Boot the app against PostgreSQL
+        working-directory: apps/api
+        run: |
+          python -m uvicorn app.main:app --port 8000 &
+          for i in $(seq 1 45); do
+            curl -sf http://localhost:8000/health/ready && break
+            sleep 2
+          done
+          curl -sf http://localhost:8000/health/ready | tee /dev/stderr | grep -q '"db":true'
+
+  web:
+    name: Web assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Syntax-check browser JavaScript
+        run: |
+          for f in apps/web/*.js; do
+            echo "checking $f"
+            node --check "$f"
+          done
+
+  guardrails:
+    name: Architecture guardrails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: No secrets committed
+        run: |
+          if git ls-files | grep -qx '.env'; then
+            echo "::error::.env must never be committed"; exit 1
+          fi
+          if git grep -nIE "sk-[A-Za-z0-9]{16,}|apify_api_[A-Za-z0-9]{20,}|postgres(ql)?://[^ ]*:[^ @]+@" \
+               -- . ':(exclude).github/workflows/ci.yml'; then
+            echo "::error::possible credential committed"; exit 1
+          fi
+          echo "no secrets found"
+
+      - name: No Redis or external broker
+        # PostgreSQL is the operational backbone: jobs, locks, state.
+        run: |
+          if git grep -nIE "^\s*(import|from)\s+(redis|celery)\b|require\(['\"](redis|ioredis|bullmq)['\"]\)|redis://|^\s*image:\s*redis|^(redis|celery)[><=~]" \
+               -- . ':(exclude).github/workflows/ci.yml'; then
+            echo "::error::Redis/broker dependency reintroduced"; exit 1
+          fi
+          echo "no broker dependency"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Every migration is reachable from a single head
+        run: |
+          pip install alembic sqlalchemy
+          cd apps/api
+          heads=$(python -c "from alembic.config import Config; from alembic.script import ScriptDirectory; print(len(ScriptDirectory.from_config(Config('alembic.ini')).get_heads()))")
+          echo "alembic heads: $heads"
+          [ "$heads" = "1" ] || { echo "::error::migration history has $heads heads"; exit 1; }

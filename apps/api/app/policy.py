@@ -18,6 +18,7 @@ POLICY_VERSION = "rule_v0"
 
 # safe approved action catalog — the policy can never invent actions
 ACTION_CATALOG = [
+    "ask_clarification",
     "show_visual_choice",
     "show_binary_tension",
     "show_spectrum",
@@ -44,7 +45,7 @@ ACTION_TO_TYPE = {
 
 HEAVY_ACTIONS = {"show_rank", "show_object_sort", "request_micro_reflection"}
 COGNITIVE_COST = {
-    "show_visual_choice": 0.15, "show_binary_tension": 0.2, "show_spectrum": 0.2,
+    "ask_clarification": 0.15, "show_visual_choice": 0.15, "show_binary_tension": 0.2, "show_spectrum": 0.2,
     "show_scenario": 0.3, "show_rank": 0.5, "show_object_sort": 0.5,
     "request_micro_reflection": 0.7, "show_reveal": 0.1, "explore_contradiction": 0.2,
 }
@@ -93,8 +94,22 @@ class RuleBasedExperiencePolicy(ExperiencePolicy):
             reveal_bonus = 1.6 if ctx.get("lives_ready") else -3.0
         if action == "close_story":
             reveal_bonus = 2.5 if ctx.get("story_ready") else -4.0
+        if action == "ask_clarification":
+            # a queued high-value clarification beats another generic probe
+            reveal_bonus = 1.4 if ctx.get("clarification_pending") else -5.0
+        # overinterpretation risk (PART 15): a reveal whose implied claim
+        # outruns its evidence is penalized in proportion to the gap
+        overclaim_penalty = 0.0
+        if action in ("show_reveal", "explore_contradiction"):
+            overclaim_penalty = ctx.get("reveal_overclaim_risk", 0.0) * 2.5
+        # anti-confirmation-bias (PART 54): interactions able to falsify a
+        # moderately strong hypothesis gain value
+        falsification_bonus = 0.0
+        if action in ACTION_TO_TYPE and ctx.get("falsifiable_targets"):
+            falsification_bonus = 0.35
         return (info_gain * 1.2 + chapter_relevance * 0.6 + novelty + reveal_bonus
-                - cognitive * 0.4 - repetition_penalty - load_penalty)
+                + falsification_bonus
+                - cognitive * 0.4 - repetition_penalty - load_penalty - overclaim_penalty)
 
 
 def build_context(session: DiscoverSession) -> dict:
@@ -141,6 +156,18 @@ def build_context(session: DiscoverSession) -> dict:
         (chapter == "REFLECTION" and since_reveal >= 2 and reveals < 2)
     )
 
+    # overinterpretation risk of the best available reveal right now
+    from . import knowledge as _knowledge
+    from . import thresholds as _th
+    from .signals import top_dims as _top_dims
+    _tops = _top_dims(session, 1, min_confidence=0.05)
+    _top_conf = _tops[0]["confidence"] if _tops else 0.0
+    reveal_overclaim_risk = _knowledge.overinterpretation_risk(0.7, _top_conf)
+    # hypotheses in the falsification band: strong enough to matter, weak
+    # enough that a disconfirming answer is informative
+    falsifiable = [d for d, s in (session.dimensions or {}).items()
+                   if _th.FALSIFICATION_BAND[0] <= s.get("confidence", 0) <= _th.FALSIFICATION_BAND[1]]
+
     info_gain = {}
     for action, itype in ACTION_TO_TYPE.items():
         info_gain[action] = information_gain_estimate(session, thin)
@@ -157,6 +184,9 @@ def build_context(session: DiscoverSession) -> dict:
         "help_count": engagement.get("help_count", 0),
         "skip_count": engagement.get("skipped", 0),
         "reveal_due": reveal_due,
+        "reveal_overclaim_risk": reveal_overclaim_risk,
+        "falsifiable_targets": falsifiable[:3],
+        "clarification_pending": bool((session.counters or {}).get("_clarification_pending")),
         "contradiction_ready": chapter == "REFLECTION" and unexplored_contradiction and since_reveal >= 1,
         "chapter_done": chapter_done,
         "lives_ready": lives_ready,
@@ -177,6 +207,7 @@ def eligible_actions(session: DiscoverSession, context: dict) -> list[str]:
         return ["transition_chapter"]
     if context.get("lives_ready"):
         return ["generate_possible_lives"]
+    out_pre: list[str] = ["ask_clarification"] if context.get("clarification_pending") else []
     for action, itype in ACTION_TO_TYPE.items():
         if itype == "micro_reflection":
             if (chapter in ("REFLECTION", "ALIGNMENT")
@@ -194,7 +225,7 @@ def eligible_actions(session: DiscoverSession, context: dict) -> list[str]:
     # never immediately repeat the same interaction action twice
     last = context["recent_actions"][-1:] or [None]
     out = [a for a in out if a != last[0] or a in ("show_reveal", "explore_contradiction")]
-    return out
+    return out_pre + out
 
 
 def decide(db: Session, session: DiscoverSession, policy: ExperiencePolicy) -> PolicyDecision:
