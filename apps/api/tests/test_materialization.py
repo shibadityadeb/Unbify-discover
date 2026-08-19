@@ -75,7 +75,10 @@ def test_transformation_fills_no_predefined_slots(client):
     # beat types come from evidence, and are never all present by construction
     types = [b["type"] for b in final["beats"]]
     assert len(types) == len(set(types)) or len(types) <= 6
-    assert all(t in ("survived", "changed", "reality", "have", "unclear", "honest") for t in types)
+    # evidence-driven beats only: story beats, plus the material ones
+    # (leverage / external example). No personality slots.
+    assert all(t in ("survived", "changed", "reality", "have", "unclear", "honest",
+                     "leverage", "quote", "same_principle") for t in types)
 
 
 def test_transformation_is_not_prescriptive(client):

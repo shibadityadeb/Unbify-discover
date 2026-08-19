@@ -20,14 +20,17 @@ def run() -> None:
                 added += 1
         opps = seed_opportunities(db)
         figs = seed_figures(db)
+        from .quotes import seed as seed_quotes
         from .world.ingestion import seed_ontology, seed_baseline_signals
         from .world.signals import recompute_signals
         occs = seed_ontology(db)
+        quotes_added = seed_quotes(db)
         seed_baseline_signals(db)
         recompute_signals(db)
         db.commit()
         print(f"seeded {added} interaction definitions, {opps} opportunities, "
-              f"{figs} public figures, {occs} occupations ({CATALOG_VERSION})")
+              f"{figs} public figures, {occs} occupations, "
+              f"{quotes_added} quotes pending review ({CATALOG_VERSION})")
 
 
 if __name__ == "__main__":

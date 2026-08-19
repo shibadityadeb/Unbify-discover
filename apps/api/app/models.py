@@ -960,3 +960,72 @@ class RequestLatency(Base):
     over_budget: Mapped[list] = mapped_column(JSON, default=list)
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
+
+
+# ---------- quote intelligence: verified, sourced, never LLM-recalled ----------
+
+class QuotePerson(Base):
+    """Accomplished people across MANY fields — trades, medicine, science,
+    sport, craft, engineering, business. Success is not "tech billionaire"."""
+    __tablename__ = "quote_people"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    field: Mapped[str] = mapped_column(String(60))          # trades|medicine|science|sport|craft|...
+    descriptor: Mapped[str] = mapped_column(String(160), default="")
+    era: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")
+
+
+class QuoteSource(Base):
+    __tablename__ = "quote_sources"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(40))           # speech|interview|book|letter|talk|archive
+    title: Mapped[str] = mapped_column(String(240))
+    publisher: Mapped[str] = mapped_column(String(160), default="")
+    url: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    published_at: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    credibility: Mapped[float] = mapped_column(Float, default=0.7)
+
+
+class QuoteRecord(Base):
+    __tablename__ = "quotes"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    person_id: Mapped[str] = mapped_column(ForeignKey("quote_people.id"), index=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("quote_sources.id"))
+    quote_text: Mapped[str] = mapped_column(Text)
+    context: Mapped[str] = mapped_column(Text, default="")   # what they were addressing
+    themes: Mapped[list] = mapped_column(JSON, default=list)  # PRINCIPLES (focus, craft, ...)
+    professional_patterns: Mapped[list] = mapped_column(JSON, default=list)  # construct ids
+    verification_status: Mapped[str] = mapped_column(String(20), default="review_needed")
+    # verified | review_needed | rejected — only "verified" may ever be displayed
+    evidence_quality: Mapped[float] = mapped_column(Float, default=0.6)
+    last_verified_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class QuoteImpression(Base):
+    """What a session has already seen, so no one meets the same person or
+    principle repeatedly."""
+    __tablename__ = "quote_impressions"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(ForeignKey("discover_sessions.id"), index=True)
+    quote_id: Mapped[str] = mapped_column(String(60))
+    person_id: Mapped[str] = mapped_column(String(60))
+    theme: Mapped[str] = mapped_column(String(60), default="")
+    module: Mapped[str] = mapped_column(String(40), default="quote")  # quote | same_principle
+    chapter: Mapped[str] = mapped_column(String(30), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class PatternValueRelationship(Base):
+    """pattern × context → the value mechanism it can produce. Authored to
+    start; meant to be learned from real outcomes. This is the thing that
+    turns a personal pattern into economic leverage."""
+    __tablename__ = "pattern_value_relationships"
+    id: Mapped[str] = mapped_column(String(60), primary_key=True)
+    pattern: Mapped[str] = mapped_column(String(60), index=True)
+    context: Mapped[list] = mapped_column(JSON, default=list)     # work_class / domain conditions
+    value_mechanisms: Mapped[list] = mapped_column(JSON, default=list)
+    explanation: Mapped[str] = mapped_column(Text, default="")
+    market_evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
+    outcome_evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
+    confidence: Mapped[float] = mapped_column(Float, default=0.5)

@@ -1291,3 +1291,19 @@ body.arrived .pager, body.arrived .scroll-hint {
 body.ch2 .chapter { visibility: hidden !important; transition: visibility 0s linear 3.2s; }
 body.ch3 .chapter2 { visibility: hidden; transition: visibility 0s linear 3.8s; }
 body.ch4 .chapter3 { visibility: hidden; transition: visibility 0s linear 4s; }
+
+/* first-page purpose hierarchy: what this is, before how it feels */
+.hero .purpose {
+  font-family: var(--serif, Georgia, serif);
+  font-size: clamp(15px, 1.9vh, 20px); line-height: 1.55;
+  color: #7d5f26; margin-top: 14px;
+}
+.hero .purpose em { font-style: italic; color: #6d5320; }
+.hero .promise {
+  font-family: var(--sans, system-ui); font-size: clamp(11.5px, 1.35vh, 13.5px);
+  line-height: 1.7; color: #a08a5e; margin-top: 14px;
+}
+.aside-label {
+  font-family: var(--sans, system-ui); font-size: 9px; letter-spacing: .3em;
+  text-transform: uppercase; color: #a3762f; margin-bottom: 8px;
+}

@@ -604,3 +604,51 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
   .dx-scene.leaving { transform: none; }
   .dx-softened { transition-duration: .01s; }
 }
+
+/* ============ quotes: editorial, credible, never a poster ============ */
+.dx-quote { width: min(620px, 90vw); text-align: left; }
+.dx-quote-text {
+  font-family: var(--serif); font-size: clamp(19px, 2.9vh, 27px); line-height: 1.5;
+  color: #6d5320; margin: 12px 0 14px; padding-left: 18px;
+  border-left: 2px solid rgba(163,118,47,.3);
+}
+.dx-quote-attr { font-family: var(--sans); font-size: 13px; color: #8a6f42; }
+.dx-quote-desc { color: #a98f5e; }
+.dx-source-toggle {
+  margin-top: 10px; font-family: var(--sans); font-size: 10px; letter-spacing: .22em;
+  text-transform: uppercase; color: #a3762f; background: none; border: 0;
+  border-bottom: 1px solid rgba(163,118,47,.35); padding: 2px 0; cursor: pointer;
+}
+.dx-source-detail { margin-top: 10px; font-family: var(--sans); font-size: 11.5px;
+  color: #a98f5e; line-height: 1.6; }
+.dx-source-detail a { color: #8a6a2e; }
+.dx-quote-context { font-style: italic; }
+.dx-quote-why { font-family: var(--sans); font-size: 12.5px; color: #8a6f42;
+  margin-top: 16px; line-height: 1.6; }
+.dx-quote-note { font-family: var(--sans); font-size: 11px; color: #a98f5e;
+  margin-top: 8px; font-style: italic; }
+
+/* same principle, different world */
+.dx-principle { width: min(720px, 92vw); text-align: left; }
+.dx-principle-theme {
+  font-family: var(--serif); font-size: clamp(21px, 3.1vh, 30px); color: #6d5320;
+  text-transform: capitalize; margin: 6px 0 18px;
+}
+.dx-principle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.dx-principle-person { border-left: 2px solid rgba(163,118,47,.25); padding-left: 16px; }
+.dx-pp-name { font-family: var(--serif); font-size: 17px; color: #6d5320; }
+.dx-pp-field { font-family: var(--sans); font-size: 10.5px; letter-spacing: .12em;
+  text-transform: uppercase; color: #a3762f; margin-bottom: 8px; }
+.dx-pp-quote { font-family: var(--serif); font-size: 15.5px; line-height: 1.55; color: #7d5f26; }
+.dx-pp-source { font-family: var(--sans); font-size: 10.5px; color: #a98f5e; margin-top: 8px; }
+.dx-principle-overlap { font-family: var(--sans); font-size: 13.5px; color: #7d5f26;
+  margin-top: 18px; line-height: 1.6; }
+@media (max-width: 640px) { .dx-principle-grid { grid-template-columns: 1fr; } }
+
+/* materialization opener — the material claim, stated plainly */
+.dx-mat-opener { text-align: center; max-width: 640px; }
+.dx-mat-claim { font-family: var(--serif); font-size: clamp(21px, 3.3vh, 32px);
+  line-height: 1.4; color: #8a6f42; }
+.dx-mat-claim.strong { color: #6d5320; margin-top: 10px; }
+.dx-mat-sub { font-family: var(--sans); font-size: 13px; color: #a3762f;
+  letter-spacing: .06em; margin-top: 22px; }
