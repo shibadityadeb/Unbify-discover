@@ -166,6 +166,46 @@ infra           docker-compose for local Postgres(pgvector)
 docs            architecture + ADRs
 ```
 
+## Quote intelligence
+
+Discover occasionally shows a documented principle from someone who produced
+real results — but only because the user's *own* supported evidence pulled it.
+The order is always: your evidence → what we observed → why it may matter →
+an external example → back to you. Never the reverse.
+
+Quotes live in PostgreSQL (`quotes`, `quote_people`, `quote_sources`) with
+themes, mapped professional patterns and a primary-source citation. The LLM is
+never asked to recall a quote — it may only write the sentence tying a
+retrieved one to the user's evidence.
+
+**Nothing displays until a human verifies it.** The seed corpus is inserted as
+`review_needed`, and retrieval filters on `verification_status`, so an
+unreviewed library shows no quotes rather than unchecked ones:
+
+```bash
+python3 scripts/verify_quotes.py status   # what is pending
+python3 scripts/verify_quotes.py list     # each quote with its cited source
+python3 scripts/verify_quotes.py verify <quote_id>
+```
+
+Changing a quote's wording or source automatically resets it to
+`review_needed` — a sign-off applies to the text someone actually read, not to
+whatever replaces it.
+
+A person is never shown twice in one journey, themes are tracked to avoid a
+single principle dominating, and there is at most one quote moment per chapter
+— often none, because a forced quote is worse than no quote. Accomplishment
+deliberately spans trades, craft, manufacturing, sport, science and engineering
+as well as business: "successful" must not collapse into "tech founder".
+
+The **same principle, different world** module pairs two people from different
+fields who arrived at the same working principle, and states plainly that their
+goals and circumstances had nothing else in common.
+
+`pattern_value_relationships` is what turns an observation into economics —
+pattern × context → the mechanism by which it pays. Quotes never touch Human
+State, Professional State or ranking, so no circular inference is possible.
+
 ## Perceived latency
 
 A pause after a selection must never read as unresponsiveness, and must never

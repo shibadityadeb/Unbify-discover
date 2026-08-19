@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from . import closing_planner, knowledge
+from . import closing_planner, knowledge, quotes
 from . import narrative_director as director
 from . import resonance, surprise
 from . import thresholds as th
@@ -24,6 +24,79 @@ CLOSING_CTA = {
     "ALIGNMENT_CLOSING": "Bring it together →",
     "TRANSFORMATION_CLOSING": "See what this can become →",
 }
+
+
+# §5/§30/§31 — a quote appears only because a supported pattern pulled it, at
+# most one moment per chapter, and always after the user's own evidence.
+QUOTE_INTROS = {
+    "SELF_DISCOVERY_CLOSING": "A principle others have worked by",
+    "REFLECTION_CLOSING": "People who built around a similar principle",
+    "ALIGNMENT_CLOSING": "One idea that rhymes with this",
+    "TRANSFORMATION_CLOSING": "Different people. Similar engine.",
+}
+
+
+def _quote_beats(db, session, st, chapter: str) -> list[dict]:
+    """Returns [] freely — a forced quote is worse than none."""
+    if f"quote:{chapter}" in (st.observations_shown or []):
+        return []                       # at most one quote moment per chapter
+    # Reflection and Transformation prefer the two-people module; the others a
+    # single idea. Either may come back empty.
+    bundle = None
+    module = "quote"
+    if chapter in ("REFLECTION_CLOSING", "TRANSFORMATION_CLOSING"):
+        bundle = quotes.same_principle_different_world(db, session, chapter)
+        module = "same_principle"
+    if not bundle:
+        bundle = quotes.select_quote(db, session, chapter)
+        module = "quote"
+    if not bundle:
+        return []
+    quotes.record_impression(db, session, bundle, module, chapter)
+    st.observations_shown = list({*(st.observations_shown or []), f"quote:{chapter}"})
+
+    if module == "same_principle":
+        return [{"type": "same_principle", "kind": "same_principle",
+                 "heading": QUOTE_INTROS[chapter], "theme": bundle["theme"],
+                 "people": [{"name": b["person"]["name"], "field": b["person"]["field"],
+                             "descriptor": b["person"]["descriptor"], "text": b["text"],
+                             "context": b["context"], "source": b["source"]}
+                            for b in bundle["people"]],
+                 "overlap": bundle["overlap"], "honesty": bundle["honesty"],
+                 "whyHere": ("It appeared because of your own evidence: "
+                             + "; ".join(bundle["yourEvidence"]) + ".")}]
+    return [{"type": "quote", "kind": "quote", "heading": QUOTE_INTROS[chapter],
+             "text": bundle["text"], "person": bundle["person"]["name"],
+             "descriptor": bundle["person"]["descriptor"],
+             "field": bundle["person"]["field"], "context": bundle["context"],
+             "source": bundle["source"],
+             "whyHere": ("It appeared because of your own evidence: "
+                         + "; ".join(bundle["yourEvidence"]) + "."),
+             "disclaimer": "Not a comparison to them — one principle, one part of what we've seen."}]
+
+
+def _value_beat(db, session, st) -> dict | None:
+    """§19 — connect a personal pattern to the mechanism that makes it pay.
+    Each pattern's economics are explained at most once per journey; a repeated
+    explanation is noise, not insight."""
+    from .resonance import user_construct_features
+    feats = user_construct_features(session)
+    if not feats:
+        return None
+    shown = {o.split(":", 1)[1] for o in (st.observations_shown or [])
+             if o.startswith("value:")}
+    ranked = sorted(feats, key=lambda c: -(feats[c]["score"] * feats[c]["confidence"]))
+    for construct in ranked:
+        if construct in shown or feats[construct]["confidence"] < th.MAY_TEST:
+            continue
+        value = quotes.value_of_pattern(db, session, construct)
+        if not value:
+            continue
+        st.observations_shown = list({*(st.observations_shown or []), f"value:{construct}"})
+        return {"type": "leverage", "kind": "beat", "label": "Why this could matter",
+                "text": f"{value['explanation']} For you that could show up as "
+                        f"{', '.join(value['mechanisms'][:2])}."}
+    return None
 
 
 def _beat(type_: str, text: str | None, label: str | None = None, kind: str = "beat") -> dict | None:
@@ -426,6 +499,13 @@ def compose_closing(db: Session, session: DiscoverSession, closing_state: str, n
         return cache["payload"]
     the_plan = closing_planner.plan(db, session, st, closing_state, next_state)
     beats = COMPOSERS[the_plan["structure"]](db, session, st, the_plan)
+    # the user's evidence comes first; an external example may follow it, and
+    # from Reflection onward we say why the pattern could be worth money
+    if closing_state != "SELF_DISCOVERY_CLOSING":
+        value = _value_beat(db, session, st)
+        if value:
+            beats.append(value)
+    beats.extend(_quote_beats(db, session, st, closing_state))
     tease = _tease(db, session, st, next_state)
     if tease:
         beats.append(tease)

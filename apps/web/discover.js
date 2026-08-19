@@ -493,10 +493,61 @@
     return block;
   }
 
+  function sectionQuote(sec) {
+    /* editorial, not an inspirational poster: the user's evidence explains
+       why this appeared, and the source is inspectable */
+    const block = document.createElement("div");
+    block.className = "dx-close-sec dx-quote";
+    block.innerHTML = `
+      <p class="cs-label">${esc(sec.heading)}</p>
+      <blockquote class="dx-quote-text">${esc(sec.text)}</blockquote>
+      <p class="dx-quote-attr">— ${esc(sec.person)}<span class="dx-quote-desc">${
+        sec.descriptor ? ", " + esc(sec.descriptor) : ""}</span></p>
+      <button class="dx-source-toggle" aria-expanded="false">Source</button>
+      <div class="dx-source-detail" hidden>
+        <p>${esc(sec.source?.title || "")}${sec.source?.publisher ? " · " + esc(sec.source.publisher) : ""}${
+          sec.source?.year ? " · " + esc(sec.source.year) : ""}</p>
+        ${sec.context ? `<p class="dx-quote-context">${esc(sec.context)}</p>` : ""}
+        ${sec.source?.url ? `<p><a href="${esc(sec.source.url)}" target="_blank" rel="noopener">Open source</a></p>` : ""}
+      </div>
+      <p class="dx-quote-why">${esc(sec.whyHere)}</p>
+      ${sec.disclaimer ? `<p class="dx-quote-note">${esc(sec.disclaimer)}</p>` : ""}`;
+    const toggle = block.querySelector(".dx-source-toggle");
+    const detail = block.querySelector(".dx-source-detail");
+    toggle.addEventListener("click", () => {
+      const open = detail.hasAttribute("hidden");
+      detail.toggleAttribute("hidden", !open);
+      toggle.setAttribute("aria-expanded", String(open));
+    });
+    return block;
+  }
+
+  function sectionSamePrinciple(sec) {
+    /* two people, deliberately from different worlds, one shared principle */
+    const block = document.createElement("div");
+    block.className = "dx-close-sec dx-principle";
+    const people = (sec.people || []).map(p => `
+      <div class="dx-principle-person">
+        <p class="dx-pp-name">${esc(p.name)}</p>
+        <p class="dx-pp-field">${esc(p.field)}${p.descriptor ? " · " + esc(p.descriptor) : ""}</p>
+        <blockquote class="dx-pp-quote">${esc(p.text)}</blockquote>
+        <p class="dx-pp-source">${esc(p.source?.title || "")}${p.source?.year ? ", " + esc(p.source.year) : ""}</p>
+      </div>`).join("");
+    block.innerHTML = `
+      <p class="cs-label">${esc(sec.heading)}</p>
+      <p class="dx-principle-theme">${esc((sec.theme || "").replace(/_/g, " "))}</p>
+      <div class="dx-principle-grid">${people}</div>
+      <p class="dx-principle-overlap">${esc(sec.overlap)}</p>
+      <p class="dx-quote-note">${esc(sec.honesty)}</p>
+      <p class="dx-quote-why">${esc(sec.whyHere)}</p>`;
+    return block;
+  }
+
   const SECTION_BUILDERS = {
     beat: sectionBeat, thread: sectionBeat,
     fragments: sectionFragments, evidence: sectionEvidence,
     mirror: sectionMirror, surprise: sectionSurprise, resonance: sectionResonance,
+    quote: sectionQuote, same_principle: sectionSamePrinciple,
   };
 
   function renderChapterClosing(scene, it) {
@@ -1217,6 +1268,14 @@
     scene.classList.add("dx-matpage");
 
     /* bridge from story to product — continuity, not a dashboard drop */
+    const opener = document.createElement("div");
+    opener.className = "dx-close-sec dx-mat-opener";
+    opener.innerHTML = `
+      <p class="dx-mat-claim">You don't need another personality result.</p>
+      <p class="dx-mat-claim strong">You need to know what this is worth.</p>
+      <p class="dx-mat-sub">Here's what we can work with.</p>`;
+    scene.appendChild(opener);
+
     const intro = document.createElement("div");
     intro.className = "dx-mat-intro";
     (it.intro || []).forEach(line => {

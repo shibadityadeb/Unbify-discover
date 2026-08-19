@@ -63,9 +63,11 @@ if not settings.is_production:
         n = seed_opportunities(db)
         from .figure_kb import seed_figures
         f = seed_figures(db)
+        from .quotes import seed as seed_quotes
         from .world.ingestion import seed_ontology, seed_baseline_signals
         from .world.signals import recompute_signals
         seed_ontology(db)
+        seed_quotes(db)
         seed_baseline_signals(db)
         recompute_signals(db)
         db.commit()
