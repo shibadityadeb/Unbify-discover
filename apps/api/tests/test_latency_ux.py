@@ -226,3 +226,38 @@ def test_stall_prompt_offers_help_not_an_exit():
     assert "/help" in assist, "the assist must ask the server for real help"
     # the free-text opt-out survives, on purpose
     assert "Rather not say" in source
+
+
+def test_chapter_transitions_acknowledge_and_survive_a_fast_open():
+    """Two defects made chapter changes feel broken rather than slow.
+
+    The advance CTAs awaited the network with no acknowledgement and no error
+    path, so a click did nothing visible until the response landed — and a
+    failure left a dead button. And close() scheduled a stage wipe 1s later with
+    no way to cancel it, so opening the next chapter inside that window blanked
+    a scene that had already rendered.
+    """
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+
+    assert "function commitAdvance(" in js
+    # every advance CTA must go through it rather than a bare await
+    assert js.count("commitAdvance(") >= 4, "each transition CTA must acknowledge the click"
+    assert "startThinking()" in js.split("function commitAdvance(")[1][:900], \
+        "the transition must show the thinking indicator it already has"
+
+    # the deferred stage wipe must be cancellable, and open() must cancel it
+    close_fn = js.split("function close() {")[1].split("}")[0]
+    assert "closeTimer" in close_fn, "the stage wipe must be tracked so it can be cancelled"
+    open_fn = js.split("async function open(chapter")[1][:400]
+    assert "clearTimeout(closeTimer)" in open_fn, \
+        "opening a chapter must cancel a pending wipe or it can blank the new scene"
+
+
+def test_narrative_retry_is_time_bounded():
+    """A novelty regeneration must not double a transition's wait."""
+    from app import narrative_director
+    assert hasattr(narrative_director, "NOVELTY_RETRY_BUDGET_S")
+    assert 0 < narrative_director.NOVELTY_RETRY_BUDGET_S <= 5
+    src = __import__("inspect").getsource(narrative_director.generate)
+    assert "NOVELTY_RETRY_BUDGET_S" in src, "the retry must consult the budget"
