@@ -292,3 +292,28 @@ def test_memory_fragments_cannot_overlap():
     # and the centre column stays clear for the question itself
     for x, _ in slots:
         assert x <= 25 or x >= 75, f"slot at x={x}% sits over the question text"
+
+
+def test_idle_detection_ignores_cursor_drift():
+    """A hand resting on the mouse is not engagement.
+
+    Raw pointermove counted as activity, so the countdown reset on every pixel
+    of tremor and the offer of help never arrived for anyone who rests a hand on
+    the mouse while thinking — which is most people. Movement now has to be
+    large enough to be a drag or a deliberate reach.
+    """
+    import re
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+
+    activity = js.split("const ACTIVITY = [")[1].split("]")[0]
+    assert "pointermove" not in activity, \
+        "raw pointermove must not reset the idle countdown"
+    assert "pointerdown" in activity and "keydown" in activity, \
+        "real interaction must still reset it"
+
+    assert "MEANINGFUL_MOVE_PX" in js, "movement needs a threshold to count"
+    px = int(re.search(r"MEANINGFUL_MOVE_PX = (\d+)", js).group(1))
+    assert 24 <= px <= 120, f"threshold of {px}px is outside a sensible range"
+    # a drag still counts as activity, so the prompt cannot interrupt one
+    assert "onMove" in js and "Math.hypot" in js

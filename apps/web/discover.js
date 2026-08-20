@@ -756,7 +756,12 @@
      or halfway through typing a sentence. Now the countdown restarts on any
      real activity, and only genuine stillness reaches the end of it. */
   const IDLE_MS = { micro_reflection: 90000, forced_rank: 75000, object_sort: 75000, default: 60000 };
-  const ACTIVITY = ["pointerdown", "pointermove", "keydown", "input", "wheel", "touchstart", "touchmove"];
+  /* Deliberately NOT plain pointermove: a person thinking with a hand resting on
+     the mouse emits it constantly, so treating every pixel of drift as activity
+     meant the countdown reset forever and the offer never arrived. Only real
+     movement counts — enough to be a drag or a deliberate reach, not a tremor. */
+  const ACTIVITY = ["pointerdown", "keydown", "input", "wheel", "touchstart", "touchmove"];
+  const MEANINGFUL_MOVE_PX = 60;
   let assistTeardown = null;
 
   function armAssist(it) {
@@ -765,7 +770,16 @@
     if (["reveal", "possible_lives", "final", "workspace"].includes(it.type)) return;
     const wait = IDLE_MS[it.type] || IDLE_MS.default;
     let lastActive = Date.now();
+    let lastX = null, lastY = null;
     const bump = () => { lastActive = Date.now(); };
+    const onMove = e => {
+      if (lastX !== null) {
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        if (Math.hypot(dx, dy) < MEANINGFUL_MOVE_PX) return;   // drift, not engagement
+      }
+      lastX = e.clientX; lastY = e.clientY;
+      bump();
+    };
     const tick = () => {
       /* a backgrounded tab is someone who left, not someone who is stuck —
          waiting there would just have the prompt sitting stale on return */
@@ -773,10 +787,12 @@
       if (Date.now() - lastActive >= wait) { disarmAssist(); showAssist(it); }
     };
     ACTIVITY.forEach(e => root.addEventListener(e, bump, { passive: true, capture: true }));
+    root.addEventListener("pointermove", onMove, { passive: true, capture: true });
     document.addEventListener("visibilitychange", bump);
     assistTimer = setInterval(tick, 1000);
     assistTeardown = () => {
       ACTIVITY.forEach(e => root.removeEventListener(e, bump, { capture: true }));
+      root.removeEventListener("pointermove", onMove, { capture: true });
       document.removeEventListener("visibilitychange", bump);
     };
   }
