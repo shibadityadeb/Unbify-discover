@@ -920,3 +920,8 @@ body.dx-busy-on { cursor: progress; }
   margin-bottom: 12px; padding-bottom: 10px;
   border-bottom: 1px solid rgba(163, 118, 47, .2);
 }
+.dx-situation { width: min(480px, 92vw); }
+.dx-probe-why {
+  font-family: var(--sans); font-size: 12.5px; line-height: 1.55; color: #9d7f4d;
+  margin-top: 10px;
+}

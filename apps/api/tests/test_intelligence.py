@@ -391,3 +391,74 @@ def test_every_dimension_phrase_reads_in_the_sentences_that_use_it():
             assert phrase and phrase[0].islower(), \
                 f"{dim} phrase must start lowercase to sit mid-sentence: {phrase!r}"
             assert not phrase.endswith("."), f"{dim} phrase must not carry its own full stop"
+
+
+# ---------------- the model-chosen follow-up ----------------
+
+def test_situation_probe_is_not_a_hardcoded_branch(db):
+    """Which follow-up appears is the model's call, from the assessed situation.
+
+    The written questions exist only as a floor for when the model is
+    unavailable — they must not be the mechanism.
+    """
+    from app import situation
+    session = make_session(db)
+    session.practical_context = {"current_status": "founder", "commercial_evidence": True}
+
+    assessed = situation.assess(db, session)
+    assert assessed["runsSomething"] is True
+    # the person's own sentences must never reach the prompt
+    assert "profession_text" not in assessed and "notes" not in assessed
+
+    from app.llm import gateway
+    original = gateway.generate
+    gateway.generate = lambda *a, **k: None          # model unavailable
+    try:
+        q = situation.next_question(db, session)
+        assert q and q["source"] == "built", "there must be a floor when the model is out"
+        assert q["options"] and 2 <= len(q["options"]) <= situation.MAX_OPTIONS
+    finally:
+        gateway.generate = original
+
+
+def test_situation_probe_rejects_unusable_questions(db):
+    """Open questions, missing options and prescriptions are discarded."""
+    from app import situation
+    from app.llm import gateway
+    session = make_session(db)
+    session.practical_context = {"current_status": "employed"}
+
+    bad = [
+        {"key": "goals", "question": "What are your goals?"},                   # no options
+        {"key": "x", "question": "Tell us anything", "options": []},            # empty
+        {"key": "y", "question": "Pick", "options": [{"id": "a", "label": "A"}]},  # only one
+        {"key": "z", "question": "You should become a consultant?",             # prescriptive
+         "options": [{"id": "a", "label": "Yes"}, {"id": "b", "label": "No"}]},
+    ]
+    original = gateway.generate
+    try:
+        for payload in bad:
+            gateway.generate = lambda *a, _p=payload, **k: _p
+            q = situation.next_question(db, session)
+            assert q is None or q["source"] == "built", f"accepted unusable: {payload}"
+    finally:
+        gateway.generate = original
+
+
+def test_situation_probe_does_not_ask_the_same_thing_twice(db):
+    """A new key for the same decision is still the same question."""
+    from app import situation
+    asked = ["Do you want out of your job, or to earn much more where you are?"]
+    assert situation._repeats("Would you rather leave software work or earn much more?", asked)
+    assert situation._repeats("Should you quit or get paid better here?", asked)
+    assert not situation._repeats("How many people does it run through right now?", asked)
+    assert not situation._repeats("What could you actually commit each week?", asked)
+
+
+def test_situation_probe_stops(db):
+    """Two or three is a follow-up; more is an interview."""
+    from app import situation
+    session = make_session(db)
+    session.practical_context = {"current_status": "founder",
+                                 "_situation": {"a": "1", "b": "2", "c": "3"}}
+    assert situation.next_question(db, session) is None

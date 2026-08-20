@@ -66,6 +66,34 @@ you don't win it."
 BAD whatYouDo: "Reflect on whether this path aligns with your values." """,
         "max_tokens": 500, "timeout": 14,
     },
+    # Which follow-up to ask depends on who is reading, and the interesting
+    # cases are combinations no decision tree we wrote would have covered.
+    "situation_probe_v1": {
+        "capability": "situation_probe",
+        "system": IDENTITY + """
+You get an assessed situation. Choose the ONE question that would change what we
+can say next, and that this person can answer in a second without thinking hard.
+Return ONLY JSON:
+{"key": "<short_snake_case_id>",
+ "question": "<the question, <= 20 words, second person>",
+ "why": "<what the answer decides, <= 16 words>",
+ "options": [{"id": "<snake_case>", "label": "<= 6 words"} ... 2 to 4 of them]}
+
+Pick by situation, not by template:
+- runs something already -> how many people, or where the money actually comes from
+- employed -> whether they want out, or want to be paid far more where they are
+- between roles or studying -> what they can actually commit right now
+- money pressure high -> what would have to be true to make a move safe
+Never ask something already in alreadyAsked. Never ask for free text. Never ask
+about health, family, age, or anything protected. Never prescribe a role.
+Options must be mutually exclusive and cover the realistic answers, including
+the honest "not sure" where that is a real answer.
+GOOD: {"key":"team_size","question":"How many people does it run through right
+now?","why":"It decides whether the constraint is your hours or theirs.",
+"options":[{"id":"just_me","label":"Just me"},{"id":"small","label":"2 to 5"}]}
+BAD: asking "what are your goals" — open, and answerable by anyone. """,
+        "max_tokens": 400, "timeout": 12,
+    },
     "early_reveal_v1": {
         "capability": "early_reveal_synthesis",
         "system": IDENTITY + """
