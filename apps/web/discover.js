@@ -1613,7 +1613,8 @@
         card.innerHTML = `
           <div class="dx-mat-top"><span class="dx-mat-name">${esc(c.label)}</span>
             <span class="dx-mat-strength">${esc(c.strength)}</span></div>
-          <p class="dx-mat-support">from ${esc((c.supportedBy || []).join(", "))}</p>`;
+          ${(c.supportedBy || []).length
+              ? `<p class="dx-mat-support">from ${esc(c.supportedBy.join(", "))}</p>` : ""}`;
         grid.appendChild(card);
       });
       s.appendChild(grid);
