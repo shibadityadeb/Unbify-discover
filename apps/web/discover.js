@@ -83,6 +83,8 @@
 
   async function open(chapter, onUnavailable) {
     ensureDom();
+    clearTimeout(closeTimer);          // never let a previous close() blank us
+    closeTimer = null;
     try {
       let data = await api("/sessions", { sessionId });
       sessionId = data.sessionId;
@@ -101,9 +103,16 @@
     }
   }
 
+  let closeTimer = null;
+
   function close() {
     document.body.classList.remove("dx-open");
-    setTimeout(() => { stage.innerHTML = ""; }, 1000);
+    /* The wipe is deferred so the fade-out has something to fade. If the next
+       chapter opens inside that window the timer would blank a scene that had
+       already rendered — rare while every request took seconds, likely once
+       they are instant. open() cancels it. */
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => { stage.innerHTML = ""; closeTimer = null; }, 1000);
   }
 
   let respondRef = null;
@@ -201,6 +210,33 @@
   }
 
   /* acknowledge within a frame: the chosen thing settles, the rest softens */
+  /* Chapter transitions went through a bare `await` with no acknowledgement:
+     the click did nothing visible until the response landed, and a failure left
+     a dead button on a frozen page. The thinking indicator already existed for
+     exactly this — it was only ever wired to answering a question, never to
+     moving between chapters. */
+  async function commitAdvance(btn, request) {
+    if (btn.dataset.busy === "1") return null;      // a second click must not advance twice
+    btn.dataset.busy = "1";
+    btn.classList.add("picked");
+    btn.setAttribute("aria-disabled", "true");
+    const label = btn.textContent;
+    startThinking();
+    try {
+      const data = await request();
+      await stopThinking();
+      return data;
+    } catch (e) {
+      await stopThinking();
+      btn.dataset.busy = "";
+      btn.classList.remove("picked");
+      btn.removeAttribute("aria-disabled");
+      btn.textContent = "That didn't go through — tap to try again";
+      setTimeout(() => { btn.textContent = label; }, 3200);
+      return null;
+    }
+  }
+
   function acknowledgeSelection(chosenEl) {
     const scene = stage.firstElementChild;
     if (!scene) return;
@@ -574,9 +610,10 @@
     }, { threshold: 0.35 });
     scene.querySelectorAll(".dx-close-sec, .dx-close-cta, .dx-res-card").forEach(el => io.observe(el));
     btn.addEventListener("click", async () => {
+      const data = await commitAdvance(btn, () => api(`/sessions/${sessionId}/advance`, { to: it.next }));
+      if (!data) return;                       // failed: the retry stays on screen
       io.disconnect();
       stage.classList.remove("dx-scroll");
-      const data = await api(`/sessions/${sessionId}/advance`, { to: it.next });
       const opener = STATE_TO_OPENER[it.next];
       if (opener) {
         close();
@@ -714,8 +751,9 @@
     scene.appendChild(btn);
     setTimeout(() => btn.classList.add("ready"), 600 + (it.lines || []).length * 1200 + 600);
     btn.addEventListener("click", async () => {
-      const data = await api(`/sessions/${sessionId}/advance`, { to: it.next || "MATERIALIZATION" });
-      handlePayload(data);
+      const data = await commitAdvance(btn,
+        () => api(`/sessions/${sessionId}/advance`, { to: it.next || "MATERIALIZATION" }));
+      if (data) handlePayload(data);
     });
   }
 
@@ -1665,11 +1703,13 @@
     }, { threshold: 0.2 });
     scene.querySelectorAll(".dx-close-sec, .dx-life").forEach(el => io.observe(el));
     cta.addEventListener("click", async () => {
+      const data = await commitAdvance(cta,
+        () => api(`/sessions/${sessionId}/advance`, { to: it.next || "DISCOVER_WORKSPACE" }));
+      if (!data) return;
       io.disconnect();
       stage.classList.remove("dx-scroll");
-      const data = await api(`/sessions/${sessionId}/advance`, { to: it.next || "DISCOVER_WORKSPACE" });
       handlePayload(data);
-    }, { once: true });
+    });
   }
 
   function esc(s) {
