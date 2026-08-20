@@ -894,3 +894,8 @@ body.dx-busy-on { cursor: progress; }
   .ws-plan-row { flex-direction: column; gap: 2px; }
   .ws-plan-k { flex: none; }
 }
+.ws-list-title {
+  font-family: var(--serif); font-size: clamp(17px, 2.3vh, 21px); color: #6d5320;
+  margin-bottom: 12px; padding-bottom: 10px;
+  border-bottom: 1px solid rgba(163, 118, 47, .2);
+}

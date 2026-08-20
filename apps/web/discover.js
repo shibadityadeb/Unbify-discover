@@ -1087,6 +1087,14 @@
     } else if (d.kind === "list") {
       const ul = document.createElement("div");
       ul.className = "ws-list";
+      /* several list actions now carry a subject; without it the reader sees a
+         set of statements with nothing saying what they are about */
+      if (d.title) {
+        const t = document.createElement("p");
+        t.className = "ws-list-title";
+        t.textContent = d.title;
+        ul.appendChild(t);
+      }
       (d.items || []).forEach(item => {
         const p = document.createElement("p");
         p.className = "ws-item";

@@ -298,13 +298,23 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
         from .professional import get_position, current_status
         prof = get_position(session)
         status = current_status(session) or "not yet shared"
-        tops = sorted(dims.items(), key=lambda kv: -abs(kv[1].get("estimate", 0)) * kv[1].get("confidence", 0))[:2]
+        # circumstances are not preferences: time, money and location describe the
+        # situation someone is in, so reading them as "your work fits best where
+        # scraps of time matter" is nonsense dressed as insight
+        from .actions import CIRCUMSTANCE_DIMS
+        tops = sorted(((d, v) for d, v in dims.items() if d not in CIRCUMSTANCE_DIMS),
+                      key=lambda kv: -abs(kv[1].get("estimate", 0)) * kv[1].get("confidence", 0))[:2]
         friction = next((c for c in (session.contradictions or [])), None)
         unknown = sorted(((d, v.get("confidence", 0)) for d, v in dims.items() if v.get("confidence", 0) < 0.3),
                          key=lambda x: x[1])[:2]
+        # the extractor writes the string "None" when it finds no industry, and
+        # that was being printed verbatim: "employed, in AI automation (None)."
+        def _real(v):
+            return v if v and str(v).strip().lower() not in ("none", "null", "unknown") else None
+        domain, industry = _real(prof.get("domain")), _real(prof.get("industry"))
         items = [
-            f"Current position — {status}" + (f", in {prof.get('domain')}" if prof.get("domain") else "") +
-            (f" ({prof.get('industry')})" if prof.get("industry") else "") + ".",
+            f"Current position — {status}" + (f", in {domain}" if domain else "") +
+            (f" ({industry})" if industry else "") + ".",
         ]
         if tops:
             d, v = tops[0]
@@ -336,10 +346,8 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
                 "demandCoverage": wide.get("demandCoverage"),
                 "honesty": wide.get("honesty")}
     if action_id == "next_move" and primary:
-        return {"kind": "single", "headline": "My best next move",
-                "title": primary["name"],
-                "text": primary["firstExperiment"],
-                "note": "Chosen from your top-ranked path and its first missing piece."}
+        from . import actions as _actions
+        return _actions.next_move(db, session, primary)
     if action_id == "test_direction" and primary:
         from . import explore as _explore
         plan = _explore.direction_test(db, session, primary)
@@ -348,13 +356,8 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
                 "plan": plan,
                 "note": "Small enough to be safe. Real enough to produce evidence."}
     if action_id == "gaps":
-        gap_dims = sorted(((d, v.get("confidence", 0)) for d, v in dims.items() if v.get("confidence", 0) < 0.3),
-                          key=lambda x: x[1])[:3]
-        items = [f"{primary['name']}: {', '.join(primary['skillGaps'])}" if primary and primary.get("skillGaps") else None]
-        items += [f"We still know little about {dim_phrase(d, 1)} — a few Questions would sharpen this." for d, _ in gap_dims]
-        return {"kind": "list", "headline": "What am I missing?",
-                "items": [i for i in items if i],
-                "note": "Gaps are direction, not verdicts."}
+        from . import actions as _actions
+        return _actions.gaps(db, session, primary, dims)
     if action_id == "improve":
         tops = sorted(dims.items(), key=lambda kv: -abs(kv[1].get("estimate", 0)) * kv[1].get("confidence", 0))[:2]
         items = [f"Your {dim_phrase(d, v.get('estimate', 0))} is under-used where you are — name one place it could run freer."
@@ -363,28 +366,14 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
         return {"kind": "list", "headline": "Improve where I am", "items": items,
                 "note": "Position often beats motion."}
     if action_id == "expertise_income":
-        consult = next((l for l in lives if l["pathway"] == "consulting"), None)
-        return {"kind": "single", "headline": "Turn my expertise into income",
-                "title": consult["name"] if consult else "Package what people already borrow",
-                "text": (consult["whyYou"] + " " if consult else "") +
-                        "Offer one person a small, paid version of the help you already give away free.",
-                "note": "First revenue is evidence, not commitment."}
+        from . import actions as _actions
+        return _actions.expertise_income(db, session, lives)
     if action_id == "build":
-        builder = next((l for l in lives if l["pathway"] in ("builder", "entrepreneurship")), None)
-        return {"kind": "single", "headline": "Build something",
-                "title": builder["name"] if builder else "The smallest shippable thing",
-                "text": (builder["firstExperiment"] if builder else
-                         "Build the smallest version of one idea in 14 days and put it in front of ten strangers."),
-                "note": "Ship rough. Learn real."}
+        from . import actions as _actions
+        return _actions.build_something(db, session, lives)
     if action_id == "ai_leverage":
-        ai_est = dims.get("ai_leverage", {}).get("estimate", 0)
-        lead = ("You're already comfortable with the tools — the play is packaging that comfort."
-                if ai_est > 0.2 else "You don't need to become technical — you need one workflow that pays.")
-        return {"kind": "list", "headline": "AI leverage",
-                "items": [lead,
-                          "Pick the most repetitive hour of your week and automate half of it this month.",
-                          "The scarce skill isn't using AI — it's knowing which of your judgments it can't replace."],
-                "note": "Leverage compounds quietly."}
+        from . import actions as _actions
+        return _actions.ai_leverage(db, session, dims)
     if action_id == "compare" and len(lives) >= 2:
         return {"kind": "compare", "headline": "Compare paths",
                 "a": lives[0], "b": lives[1],
