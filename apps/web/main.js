@@ -183,6 +183,32 @@
     window.addEventListener("resize", sizeArtFrame);
   }
 
+  /* Chapter entry runs an animation and then a network call. The unlock used to
+     be a fixed timer, so on a slow link it released while the request was still
+     in flight, and on a fast one it held the page long after the content had
+     arrived. Either way a scroll in that window did nothing and looked broken.
+     openChapter ties the lock to the work and shows the blocking wait. */
+  function openChapter(name, onUnavailable, release) {
+    const busy = window.UnbifyBusy;
+    if (busy) busy.on("Opening the next chapter…");
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      if (busy) busy.off();
+      release();
+    };
+    try {
+      const p = window.UnbifyDiscover.open(name, onUnavailable);
+      if (p && typeof p.then === "function") p.then(finish, finish);
+      else finish();
+    } catch (e) {
+      finish();
+    }
+    /* a hung request must never strand the page in a locked state */
+    setTimeout(finish, 20000);
+  }
+
   /* enter Self Discovery — zoom, focus the walking figure, wash to Scene 01 */
   let entering = false;
   function enterScene() {
@@ -196,16 +222,15 @@
     }
     /* the artwork becomes the doorway — the Discover experience opens inside the light */
     setTimeout(() => {
-      window.UnbifyDiscover.open("self_discovery", () => {
+      openChapter("self_discovery", () => {
         document.body.classList.add("ch2");
         clearTimeout(cue2Timer);
         cue2Timer = setTimeout(() => document.body.classList.add("cue2"), 3400);
+      }, () => {
+        document.body.classList.remove("enter-scene");
+        entering = false; transitioning = false;
       });
     }, 1050);
-    setTimeout(() => {
-      document.body.classList.remove("enter-scene");
-      entering = false; transitioning = false;
-    }, 2800);
   }
   const hsTitle = document.getElementById("hsTitle");
   if (hsTitle) hsTitle.addEventListener("click", enterScene);
@@ -313,16 +338,15 @@
     setTimeout(() => document.body.classList.add("enter-ch2"), 500);
     /* the Roman path becomes the doorway into Reflection */
     setTimeout(() => {
-      window.UnbifyDiscover.open("reflection", () => {
+      openChapter("reflection", () => {
         document.body.classList.add("ch3");
         clearTimeout(cue3Timer);
         cue3Timer = setTimeout(() => document.body.classList.add("cue3"), 3400);
+      }, () => {
+        document.body.classList.remove("enter-ch2");
+        enteringCh2 = false; transitioning = false;
       });
     }, 1600);
-    setTimeout(() => {
-      document.body.classList.remove("enter-ch2");
-      enteringCh2 = false; transitioning = false;
-    }, 3300);
   }
   /* size halo + focus wash to the displayed (cover, right-anchored) image rect */
   const ch2Img = document.getElementById("ch2Img");
@@ -377,16 +401,15 @@
     }
     /* the river becomes the doorway into Alignment */
     setTimeout(() => {
-      window.UnbifyDiscover.open("alignment", () => {
+      openChapter("alignment", () => {
         document.body.classList.add("ch4");
         clearTimeout(cue4Timer);
         cue4Timer = setTimeout(() => document.body.classList.add("cue4"), 3600);
+      }, () => {
+        document.body.classList.remove("enter-ch3");
+        enteringCh3 = false; transitioning = false;
       });
     }, 1150);
-    setTimeout(() => {
-      document.body.classList.remove("enter-ch3");
-      enteringCh3 = false; transitioning = false;
-    }, 3500);
   }
   const ch3Img = document.getElementById("ch3Img");
   function sizeCh3Rect() {
@@ -434,11 +457,12 @@
     document.body.classList.add("enter-ch4");
     setTimeout(() => {
       if (LINKS.transformation01) { window.location.href = LINKS.transformation01; return; }
-      window.UnbifyDiscover.open("transformation", () => {
+      openChapter("transformation", () => {
         document.body.classList.add("scene4-open");
+      }, () => {
+        document.body.classList.remove("enter-ch4");
+        enteringCh4 = false; transitioning = false;
       });
-      document.body.classList.remove("enter-ch4");
-      enteringCh4 = false; transitioning = false;
     }, 2000);
   }
   const ch4Img = document.getElementById("ch4Img");
@@ -499,6 +523,7 @@
     if (now - lastAdvance < 1800) return;
     const b = document.body.classList;
     if (b.contains("scene4-open") || b.contains("dx-open") || transitioning || overlayOpen()) return;
+    if (window.UnbifyBusy && window.UnbifyBusy.active()) return;   // a wait is already exclusive
     lastAdvance = now;
     if (b.contains("ch4")) {
       enterTransformation();

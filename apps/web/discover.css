@@ -322,7 +322,10 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 .dx-frag {
   position: absolute; font-family: var(--serif); font-style: italic;
   font-size: clamp(13px, 1.9vh, 17px); color: #8d6a2b;
-  opacity: 0; transform: translate(-50%, -50%);
+  /* only vertical centring: horizontal placement is edge-anchored in JS so a
+     fragment can never hang off the side and be clipped */
+  opacity: 0; transform: translateY(-50%);
+  max-width: 22vw; overflow: hidden; text-overflow: ellipsis;
   transition: opacity 2.4s ease, left 2.6s cubic-bezier(.3,.5,.2,1), top 2.6s cubic-bezier(.3,.5,.2,1);
   animation: fragDrift 14s ease-in-out infinite alternate;
   white-space: nowrap;
@@ -756,3 +759,52 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 .dx-probe-opts { display: flex; flex-direction: column; gap: 10px; margin: 22px 0 8px; }
 .dx-probe-done { font-family: var(--sans); font-size: 13.5px; line-height: 1.6; color: #8a6c3c; margin: 14px 0 18px; }
 @media (prefers-reduced-motion: reduce) { .dx-probe-back { backdrop-filter: none; } }
+
+/* ============ the blocking wait ============
+   Used only where the next thing genuinely cannot start yet — chapter entry
+   and chapter-to-chapter transitions. Answering a question deliberately does
+   NOT use this: that path acknowledges instantly and keeps the page live. */
+.dx-busy {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(247, 238, 219, .62);
+  backdrop-filter: blur(2px) saturate(.85);
+  opacity: 0; transition: opacity .38s ease;
+  cursor: progress;
+}
+.dx-busy.in { opacity: 1; }
+/* the message sits on its own ground so it reads against whatever is behind it —
+   a faint line floating over greyed content is easy to miss entirely */
+.dx-busy-inner {
+  display: flex; align-items: center; gap: 13px;
+  background: rgba(255, 251, 242, .92);
+  border: 1px solid rgba(163, 118, 47, .28);
+  border-radius: 999px; padding: 13px 22px;
+  box-shadow: 0 10px 34px rgba(90, 66, 24, .13);
+}
+.dx-busy-pulse {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #c08a3c; box-shadow: 0 0 0 0 rgba(192, 138, 60, .45);
+  animation: dxBusyPulse 1.8s ease-out infinite;
+}
+@keyframes dxBusyPulse {
+  0%   { transform: scale(.85); box-shadow: 0 0 0 0 rgba(192,138,60,.45); }
+  70%  { transform: scale(1);   box-shadow: 0 0 0 16px rgba(192,138,60,0); }
+  100% { transform: scale(.85); box-shadow: 0 0 0 0 rgba(192,138,60,0); }
+}
+.dx-busy-text {
+  font-family: var(--sans); font-size: 14.5px; font-weight: 500;
+  letter-spacing: .03em; color: #6b4f1c; white-space: nowrap;
+}
+@media (max-width: 520px) { .dx-busy-text { white-space: normal; font-size: 13.5px; } }
+/* everything behind the veil reads as unavailable, not merely covered */
+body.dx-busy-on .dx-stage,
+body.dx-busy-on .art-stage,
+body.dx-busy-on .ch-nav,
+body.dx-busy-on .scroll-hint { filter: grayscale(.55) opacity(.55); transition: filter .38s ease; }
+body.dx-busy-on { cursor: progress; }
+@media (prefers-reduced-motion: reduce) {
+  .dx-busy { backdrop-filter: none; transition: none; }
+  .dx-busy-pulse { animation: none; }
+  body.dx-busy-on .dx-stage, body.dx-busy-on .art-stage { transition: none; }
+}

@@ -261,3 +261,34 @@ def test_narrative_retry_is_time_bounded():
     assert 0 < narrative_director.NOVELTY_RETRY_BUDGET_S <= 5
     src = __import__("inspect").getsource(narrative_director.generate)
     assert "NOVELTY_RETRY_BUDGET_S" in src, "the retry must consult the budget"
+
+
+def test_memory_fragments_cannot_overlap():
+    """Fragments used to be positioned by a raw hash of their own text.
+
+    Nothing stopped two of them landing on the same spot, and when they did they
+    rendered as overlapping glyphs in the corner — unreadable, and it looked
+    like a rendering fault rather than atmosphere. Measured at ~19% of
+    six-fragment layouts. They now go into fixed, separated slots.
+    """
+    import re
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+
+    assert "FRAG_SLOTS" in js, "fragments must be placed into fixed slots"
+    assert "8 + (h % 80)" not in js, "the colliding raw-hash placement must not come back"
+
+    block = js.split("const FRAG_SLOTS = [")[1].split("];")[0]
+    slots = [(int(a), int(b)) for a, b in re.findall(r"\[(\d+),\s*(\d+)\]", block)]
+    assert len(slots) >= 8, "too few slots to hold a typical field"
+    assert len(set(slots)) == len(slots), "duplicate slot positions defeat the fix"
+
+    # every pair must be far enough apart that short italic text cannot collide
+    for i, a in enumerate(slots):
+        for b in slots[i + 1:]:
+            assert abs(a[0] - b[0]) >= 8 or abs(a[1] - b[1]) >= 8, \
+                f"slots {a} and {b} are close enough to overlap"
+
+    # and the centre column stays clear for the question itself
+    for x, _ in slots:
+        assert x <= 25 or x >= 75, f"slot at x={x}% sits over the question text"

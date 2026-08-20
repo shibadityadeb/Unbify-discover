@@ -26,13 +26,19 @@
   let root, stage, chapterEl, progressEl, fieldEl, threadEl;
   let assistTimer = null;
   let helpUsed = false;
-  /* ?discover=fresh starts a brand-new session instead of resuming.
-     Resuming is right for a real visitor — the story is not meant to be
-     re-answered — but it makes the journey impossible to walk twice while
-     working on it, since every reload lands on whatever state you left. */
-  const FRESH = /[?&]discover=fresh\b/.test(location.search);
-  if (FRESH) localStorage.removeItem("unbify-discover-session");
-  let sessionId = FRESH ? null : (localStorage.getItem("unbify-discover-session") || null);
+  /* No persistence until there is an account to attach it to.
+
+     A resumed session is only meaningful if we know whose it is. With no auth,
+     the stored id belongs to "whoever last used this browser" — so a reload
+     dropped people back into Chapter IV of someone else's half-finished run,
+     with no way to start over and no signed-in identity that would justify it.
+     Every page load now begins a new session; the id lives in memory for the
+     length of the visit, which is what keeps one journey coherent.
+
+     Trade-off, deliberately taken: refreshing mid-journey loses progress. When
+     accounts exist, resume belongs behind them. */
+  try { localStorage.removeItem("unbify-discover-session"); } catch (e) { /* private mode */ }
+  let sessionId = null;
   let shownAt = 0;
   let busy = false;
 
@@ -88,7 +94,6 @@
     try {
       let data = await api("/sessions", { sessionId });
       sessionId = data.sessionId;
-      localStorage.setItem("unbify-discover-session", sessionId);
       /* the chapter opener the user just walked through acknowledges the
          server-offered transition; illegal jumps are rejected server-side */
       const target = CHAPTER_STATES[chapter];
@@ -104,6 +109,79 @@
   }
 
   let closeTimer = null;
+
+  /* ---------------- a wait that is visible and exclusive ----------------
+
+     Chapter entry plays an animation and then makes a network call. On a slow
+     link that is several seconds during which the page silently swallows every
+     scroll and click: input that vanishes reads as a broken page, not a busy
+     one. So the wait greys the page out, says what is happening, and takes the
+     input itself instead of dropping it.
+
+     It only appears after a short delay — flashing a veil over a 40ms operation
+     is worse than showing nothing at all. */
+  const BUSY_SHOW_AFTER_MS = 400;
+  const BUSY_LONG_MS = 4000;
+  let busyEl = null, busyTimers = [], busyDepth = 0;
+  const BUSY_BLOCKED = ["wheel", "touchmove", "keydown", "click", "pointerdown"];
+
+  function busyBlock(e) {
+    if (!busyEl) return;
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+  }
+
+  function busyOn(message) {
+    busyDepth += 1;
+    if (busyEl || busyTimers.length) return;
+    busyTimers.push(setTimeout(() => {
+      if (busyDepth <= 0) return;
+      busyEl = document.createElement("div");
+      busyEl.className = "dx-busy";
+      busyEl.setAttribute("role", "status");
+      busyEl.setAttribute("aria-live", "polite");
+      busyEl.innerHTML = `<div class="dx-busy-inner">
+          <span class="dx-busy-pulse" aria-hidden="true"></span>
+          <p class="dx-busy-text"></p></div>`;
+      busyEl.querySelector(".dx-busy-text").textContent = message || "Taking a moment…";
+      document.body.appendChild(busyEl);
+      document.body.classList.add("dx-busy-on");
+      document.body.setAttribute("aria-busy", "true");
+      BUSY_BLOCKED.forEach(t => window.addEventListener(t, busyBlock, { capture: true, passive: false }));
+      /* Force a reflow and set the visible state synchronously. Going through
+         requestAnimationFrame left the veil at opacity 0 whenever rAF was
+         throttled (a backgrounded tab), which is the worst possible state: it
+         blocks every input while showing nothing at all. */
+      void busyEl.offsetWidth;
+      busyEl.classList.add("in");
+      busyTimers.push(setTimeout(() => {
+        const p = busyEl && busyEl.querySelector(".dx-busy-text");
+        if (p) p.textContent = "Still working — this one's taking longer than usual.";
+      }, BUSY_LONG_MS));
+    }, BUSY_SHOW_AFTER_MS));
+  }
+
+  function busyOff() {
+    busyDepth = Math.max(0, busyDepth - 1);
+    if (busyDepth > 0) return;               // another wait is still running
+    busyTimers.forEach(clearTimeout);
+    busyTimers = [];
+    BUSY_BLOCKED.forEach(t => window.removeEventListener(t, busyBlock, { capture: true }));
+    document.body.classList.remove("dx-busy-on");
+    document.body.removeAttribute("aria-busy");
+    if (!busyEl) return;
+    const el = busyEl;
+    busyEl = null;
+    el.classList.remove("in");
+    setTimeout(() => el.remove(), 420);
+  }
+
+  /* Wrap any promise in the blocking wait; always releases, even on failure. */
+  async function withBusy(message, work) {
+    busyOn(message);
+    try { return await work(); }
+    finally { busyOff(); }
+  }
 
   function close() {
     document.body.classList.remove("dx-open");
@@ -222,6 +300,7 @@
     btn.setAttribute("aria-disabled", "true");
     const label = btn.textContent;
     startThinking();
+    busyOn("Opening the next chapter…");
     try {
       const data = await request();
       await stopThinking();
@@ -234,6 +313,8 @@
       btn.textContent = "That didn't go through — tap to try again";
       setTimeout(() => { btn.textContent = label; }, 3200);
       return null;
+    } finally {
+      busyOff();
     }
   }
 
@@ -327,6 +408,15 @@
   const CHAPTER_ORDER = ["SELF_DISCOVERY", "REFLECTION", "ALIGNMENT", "TRANSFORMATION"];
   const BASE_STATE = s => (s || "").replace("_CLOSING", "");
 
+  /* Left and right gutters only — the centre belongs to the question. Ordered
+     so consecutive slots are far apart, which keeps a run of collisions from
+     clustering everything into one corner. */
+  const FRAG_SLOTS = [
+    [8, 12], [92, 12], [15, 23], [85, 23], [8, 34], [92, 34], [15, 45],
+    [85, 45], [8, 56], [92, 56], [15, 67], [85, 67], [8, 78], [92, 78],
+    [15, 89], [85, 89],
+  ];
+
   function updateField(fragments, chapter) {
     if (!fieldEl) return;
     const wanted = new Map((fragments || []).map(f => [f.t, f.s]));
@@ -335,7 +425,17 @@
     });
     let salt = 0;
     for (const ch of (chapter || "")) salt += ch.charCodeAt(0);
-    wanted.forEach((s, t) => {
+    /* Positions used to come straight from a hash of the fragment text, with
+       nothing stopping two fragments landing on the same spot — and when they
+       did they rendered exactly on top of each other as unreadable overlapping
+       glyphs. Fragments are now placed into fixed, well-separated slots: the
+       hash picks a starting slot and we walk to the next free one, so the
+       layout stays stable and deterministic but can never collide.
+       The slots also avoid the middle column, where the question itself sits. */
+    const taken = new Set();
+    const sorted = [...wanted.keys()].sort();          // stable regardless of Map order
+    sorted.forEach(t => {
+      const s = wanted.get(t);
       let el = fieldEl.querySelector(`.dx-frag[data-t="${CSS.escape(t)}"]`);
       if (!el) {
         el = document.createElement("span");
@@ -346,8 +446,19 @@
       }
       let h = salt;
       for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-      el.style.left = (8 + (h % 80)) + "%";
-      el.style.top = (12 + ((h >> 7) % 70)) + "%";
+      let slot = h % FRAG_SLOTS.length;
+      for (let i = 0; i < FRAG_SLOTS.length && taken.has(slot); i++) {
+        slot = (slot + 1) % FRAG_SLOTS.length;
+      }
+      taken.add(slot);
+      const [x, y] = FRAG_SLOTS[slot];
+      /* Anchor by the edge the fragment sits against, never by its centre.
+         Centring meant half the word extended past the gutter and was sliced
+         off by the field's overflow:hidden — which is what produced stray
+         part-words like "ing" hanging off the left edge. */
+      if (x < 50) { el.style.left = x + "%"; el.style.right = "auto"; }
+      else { el.style.right = (100 - x) + "%"; el.style.left = "auto"; }
+      el.style.top = y + "%";
       el.style.opacity = Math.min(0.34, 0.1 + s * 0.28);
     });
   }
@@ -1717,4 +1828,6 @@
   }
 
   window.UnbifyDiscover = { open, close };
+  window.UnbifyBusy = { on: busyOn, off: busyOff, wrap: withBusy,
+                        active: () => busyDepth > 0 };
 })();
