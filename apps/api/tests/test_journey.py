@@ -126,3 +126,29 @@ def test_no_third_party_perception_questions(client):
     text = str(INTERACTIONS).lower()
     for phrase in ["people come to you", "friends say", "would your manager", "coworkers say"]:
         assert phrase not in text
+
+
+def test_every_workspace_action_names_its_own_blocker():
+    """A capsule that cannot deliver must say what IS missing, in its own terms.
+
+    One shared "not enough evidence yet" told the person nothing about what they
+    had just opened or how to unblock it — the same sentence whether they asked
+    to compare paths or to test a direction.
+    """
+    from app import workspace
+
+    for action_id in ("compare", "explore", "test_direction", "next_move", "build"):
+        out = workspace._not_yet(action_id, lives=[{"key": "one"}])
+        assert out["headline"] != "Not ready yet", f"{action_id} fell back to the generic message"
+        assert out["title"], f"{action_id} did not say what is missing"
+        assert out["text"], f"{action_id} did not say how to unblock it"
+        # the headline must name the thing the person actually clicked
+        assert len(out["headline"]) > 3
+
+    # the count is real, not a placeholder
+    compare = workspace._not_yet("compare", lives=[{"key": "only-one"}])
+    assert "1" in compare["title"], "the blocker should state how many directions exist"
+
+    # anything unnamed still explains itself rather than going silent
+    unknown = workspace._not_yet("no_such_action", lives=[])
+    assert unknown["headline"] and unknown["title"] and unknown["text"]

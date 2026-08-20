@@ -380,10 +380,46 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
         return {"kind": "compare", "headline": "Compare paths",
                 "a": lives[0], "b": lives[1],
                 "note": "Weighed against your actual constraints, not a generic pro/con list."}
-    return {"kind": "single", "headline": "Not enough evidence yet",
-            "title": "A few Questions would unlock this",
-            "text": "Answer the highest-value questions in the Questions tab and this action sharpens.",
-            "note": ""}
+    return _not_yet(action_id, lives)
+
+
+# Each action promises something specific, so when it cannot deliver it has to
+# say what is missing in its own terms. One shared "not enough evidence yet"
+# told the person nothing about what they had opened or how to unblock it.
+NOT_YET = {
+    "compare": ("Compare paths",
+                "Comparing needs two directions to weigh against each other, and we only "
+                "have {n} so far.",
+                "Answering a few more questions widens the map — the second direction is "
+                "what makes a comparison mean anything."),
+    "explore": ("Your Opportunity Map",
+                "The map ranks directions against your evidence, and there isn't enough "
+                "of it yet to rank anything responsibly.",
+                "The Questions tab has the ones that would move this most."),
+    "test_direction": ("Test a direction",
+                       "An experiment has to test a specific direction, and none is "
+                       "settled enough yet to be worth a week of your time.",
+                       "Pick a direction on the map first, then this becomes concrete."),
+    "next_move": ("My best next move",
+                  "A next move is only useful if it points somewhere. We don't have a "
+                  "direction firm enough to aim at yet.",
+                  "A few more answers and this turns into one specific step."),
+    "build": ("Build something",
+              "We can't yet see which builder path fits you rather than any builder.",
+              "The questions about time, money and risk are the ones that decide this."),
+}
+
+
+def _not_yet(action_id: str, lives: list) -> dict:
+    title, why, unlock = NOT_YET.get(
+        action_id,
+        ("Not ready yet",
+         "This one needs more evidence than we currently hold.",
+         "The Questions tab has the ones that would unlock it."))
+    return {"kind": "single", "headline": title,
+            "title": why.format(n=len(lives)),
+            "text": unlock,
+            "note": "Nothing here is hidden — it genuinely isn't earned yet."}
 
 
 def _question_invite(db: Session, session: DiscoverSession, pending: list[dict]) -> str:
