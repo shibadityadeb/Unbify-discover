@@ -944,8 +944,28 @@
       row.innerHTML = `<span class="lbl">${esc(a.label)}</span><span class="hint">${esc(a.hint)}</span>
         <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M0 6 H31 M26 1.5 L31.5 6 L26 10.5"/></svg>`;
       row.addEventListener("click", async () => {
-        const detail = await wsApi("/actions/" + a.id);
-        showActionDetail(body, ws, detail);
+        /* These can take real time — the first action in a session runs the
+           whole recommendation pipeline, and against a distant database that is
+           tens of seconds. The click used to await it in silence with no error
+           path, so a slow action and a broken one looked identical: nothing
+           happened, and nothing ever would. */
+        if (row.dataset.busy === "1") return;
+        row.dataset.busy = "1";
+        row.classList.add("loading");
+        let detail = null;
+        try {
+          detail = await withBusy("Working that out…", () => wsApi("/actions/" + a.id));
+        } catch (e) {
+          detail = null;
+        }
+        row.dataset.busy = "";
+        row.classList.remove("loading");
+        if (detail) { showActionDetail(body, ws, detail); return; }
+        const failed = document.createElement("p");
+        failed.className = "ws-action-failed";
+        failed.textContent = "That didn't load. Tap again to retry.";
+        row.after(failed);
+        setTimeout(() => failed.remove(), 5000);
       });
       list.appendChild(row);
     });

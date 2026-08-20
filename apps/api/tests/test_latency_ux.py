@@ -334,3 +334,17 @@ def test_only_one_retry_block_can_exist():
         "showRetry must clear any existing retry before adding one"
     # and it must still preserve the answer rather than making them redo it
     assert "respondMain(interactionId, response, chosenEl)" in fn
+
+
+def test_workspace_action_clicks_are_acknowledged():
+    """A workspace action can take tens of seconds — the first one in a session
+    runs the whole recommendation pipeline. The click used to await it in
+    silence with no error path, so a slow action and a broken one looked
+    identical: nothing happened, and nothing ever would."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+    handler = js.split('row.addEventListener("click"')[1].split("list.appendChild(row)")[0]
+    assert "withBusy" in handler, "the wait must be visible"
+    assert "catch" in handler, "a failed action must not vanish silently"
+    assert "retry" in handler.lower(), "the person needs a way to try again"
+    assert 'dataset.busy' in handler, "a second click must not start a second request"
