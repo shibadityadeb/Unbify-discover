@@ -12,8 +12,8 @@ from .. import orchestrator, statemachine
 from ..config import settings
 from ..db import get_db
 from ..events import emit
-from ..models import (AnonymousIdentity, DiscoverSession, Outcome,
-                      RecommendationItem, RecommendationSet)
+from ..models import (AnonymousIdentity, DiscoverSession, InteractionInstance,
+                      Outcome, RecommendationItem, RecommendationSet)
 
 router = APIRouter(prefix="/v1")
 
@@ -121,6 +121,24 @@ def submit(session_id: str, body: SubmitResponse, db: Session = Depends(get_db))
     if not settings.is_production:
         out["timings"] = {"phases": timer.phases, "totalMs": timer.total_ms(),
                           "overBudget": timer.over_budget()}
+    return out
+
+
+@router.post("/discover/sessions/{session_id}/interactions/{instance_id}/help")
+def get_decision_help(session_id: str, instance_id: str, db: Session = Depends(get_db)):
+    """Real help for someone stuck on a question — a concrete moment and what
+    each option costs in it. There is deliberately no skip beside this: the way
+    out of a hard choice is making it, and a choice made from a clear picture is
+    better evidence than one made from fatigue."""
+    session = _get_session(db, session_id)
+    inst = db.get(InteractionInstance, instance_id)
+    if not inst or inst.session_id != session.id:
+        raise HTTPException(404, "unknown interaction")
+    from .. import decision_help
+    out = decision_help.build(db, session, inst)
+    emit(db, session_id, "assist.help_shown",
+         {"interaction": inst.type, "source": out.get("source")})
+    db.commit()
     return out
 
 
@@ -537,15 +555,49 @@ def get_materialization(session_id: str, db: Session = Depends(get_db)):
     session = _get_session(db, session_id)
     if session.journey_status not in ("MATERIALIZATION", "DISCOVER_WORKSPACE"):
         raise HTTPException(409, "materialization opens after the story completes")
-    from .. import materialization
-    cached = (session.practical_context or {}).get("_materialization")
+    from .. import content_build, materialization
+    cached = content_build.fresh((session.practical_context or {}).get("_materialization"))
     payload = cached or materialization.build(db, session)
     if not cached:
         pc = dict(session.practical_context or {})
-        pc["_materialization"] = payload
+        pc["_materialization"] = content_build.stamped(payload)
         session.practical_context = pc
     db.commit()
     return {"sessionId": session.id, **payload}
+
+
+class ProbeAnswer(BaseModel):
+    stepId: str = Field(max_length=40)
+    optionId: str = Field(max_length=40)
+
+
+@router.post("/discover/sessions/{session_id}/venture/probe")
+def answer_venture_probe(session_id: str, body: ProbeAnswer, db: Session = Depends(get_db)):
+    """One answer from the operator probe — the follow-up questions behind
+    "Explore something interesting for you". Each answer is stored as an
+    explicit fact and immediately re-routes the surfaces, so the questions
+    visibly do something rather than feeding a form."""
+    session = _get_session(db, session_id)
+    from .. import venture
+    if not venture.is_operator(session):
+        raise HTTPException(409, "the venture probe is for people already running something")
+    result = venture.save_probe(db, session, body.stepId, body.optionId)
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("error", "bad probe answer"))
+    answers = result["answers"]
+    from .. import materialization
+    caps = materialization.capability_map(db, session)
+    surfaces = venture.surfaces_for(db, session, answers, [c["key"] for c in caps])
+    # the cached materialization payload is now stale
+    pc = dict(session.practical_context or {})
+    pc.pop("_materialization", None)
+    session.practical_context = pc
+    emit(db, session_id, "venture.probe_answered",
+         {"step": body.stepId, "option": body.optionId})
+    db.commit()
+    return {"ok": True, "answers": answers, "next": result["next"],
+            "read": venture.probe_read(answers), "surfaces": surfaces,
+            "complete": result["next"] is None}
 
 
 @router.post("/discover/sessions/{session_id}/objects/status")

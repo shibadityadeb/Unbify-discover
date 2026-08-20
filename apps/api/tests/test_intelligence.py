@@ -211,6 +211,79 @@ def test_possible_lives_abstains_to_broad_directions(db):
         assert "recommendation" not in life["essence"] or "not a recommendation" in life["essence"]
 
 
+def test_abstention_screen_reads_back_the_users_own_evidence(db):
+    """Abstaining is not a licence to show a blank form.
+
+    The pre-threshold Alignment screen used to render the full card scaffolding
+    filled with constants — identical for every user, with "n/a" under two
+    headings. It was honest and unreadable: nothing in it came from the person,
+    so there was nothing to recognise. Every field must now be derived.
+    """
+    from app.orchestrator import _make_possible_lives
+    session = make_session(db, journey_status="ALIGNMENT")
+    session.dimensions = {
+        "autonomy": {"estimate": 0.62, "confidence": 0.5, "evidence_count": 4,
+                     "pos_w": 1.0, "neg_w": 0, "variance": 0},
+        "originality": {"estimate": 0.51, "confidence": 0.42, "evidence_count": 3,
+                        "pos_w": 1.0, "neg_w": 0, "variance": 0},
+    }
+    out = _make_possible_lives(db, session)
+    assert out["server"].get("abstained")
+    public = out["public"]
+    lives = public["lives"]
+    assert lives
+
+    for life in lives:
+        blob = " ".join(str(v) for v in life.values()).lower()
+        assert "n/a" not in blob, "a placeholder under a heading reads as a broken form"
+        assert "risk" not in life and "timeToValue" not in life, \
+            "omit a field we cannot fill; never render it empty"
+        assert content_policy_ok(life)
+
+    # the user's own strongest signal has to appear in words they can recognise
+    lead = next(l for l in lives if l["key"] == "energy")
+    assert "setting your own hours and rules" in lead["whyYou"]
+    assert "4 answers" in lead["whyYou"], "cite the evidence count, not 'your strongest evidence'"
+
+    # and the abstention itself must name what is missing, not just that something is
+    assert "don't yet have enough evidence" in public["supportingText"]
+    assert "real-world context" in public["supportingText"]
+
+
+def content_policy_ok(life: dict) -> bool:
+    from app.content_policy import validate
+    return all(validate(str(v)) for v in life.values())
+
+
+def test_absence_closing_leads_with_what_is_present(db):
+    """PART 36: an absence only means something next to a presence.
+
+    The earlier composer opened on the system's expectation and closed by
+    retracting itself. It must now open on what IS driving the choices.
+    """
+    from app.closing_planner import _detect_absence
+    from app.closings import _unexpected_absence
+    session = make_session(db, journey_status="REFLECTION")
+    session.practical_context = {"works_with_software": True}
+    session.dimensions = {
+        "mastery": {"estimate": 0.1, "confidence": 0.3, "evidence_count": 2,
+                    "pos_w": 1.0, "neg_w": 0, "variance": 0},
+        "analytical": {"estimate": 0.05, "confidence": 0.32, "evidence_count": 2,
+                       "pos_w": 1.0, "neg_w": 0, "variance": 0},
+        "autonomy": {"estimate": 0.66, "confidence": 0.55, "evidence_count": 5,
+                     "pos_w": 1.0, "neg_w": 0, "variance": 0},
+    }
+    payload = _detect_absence(db, session)
+    assert payload, "software experience with no firm technical signal is an absence"
+    beats = _unexpected_absence(db, session, None, {"drivingEvent": {"payload": payload}})
+
+    assert "setting your own hours and rules" in beats[0]["text"], \
+        "the first beat must be the pattern the reader can recognise"
+    assert "hasn't been steering" in beats[1]["text"]
+    assert "too early to interpret" not in beats[-1]["text"].lower(), \
+        "the closing beat must carry the thread forward, not cancel the page"
+
+
 # ---------------- PART 77/96: content policy ----------------
 
 def test_content_policy_blocks_prescriptions_and_horoscopes():
@@ -241,3 +314,80 @@ def test_ambiguity_creates_no_dimension_signal(db):
     session = make_session(db)
     interpret_free_text(db, session, "I manage codes and softwares.")
     assert not session.dimensions, "ambiguous wording must never move psychological state"
+
+def test_cached_payloads_rebuild_when_the_build_changes(db):
+    """A payload cached by older composition code must not be served forever.
+
+    The materialization and closing caches were keyed only on journey state, so
+    a session that reached the page once kept the old payload across every
+    later code change. Refreshing could not fix it — the cache was the thing
+    being refreshed.
+    """
+    from app import content_build
+    from app.models import AnonymousIdentity, DiscoverSession
+    from app.orchestrator import next_step
+
+    anon = AnonymousIdentity()
+    db.add(anon)
+    db.flush()
+    stale = {"type": "materialization", "intro": ["composed by code that no longer exists"],
+             "directions": [{"key": "old", "label": "Some employed role"}]}
+    session = DiscoverSession(
+        anon_id=anon.id, journey_status="MATERIALIZATION", dimensions={}, counters={},
+        practical_context={"current_status": "founder", "_materialization": stale})
+    db.add(session)
+    db.flush()
+
+    out = next_step(db, session)["interaction"]
+    assert out["intro"] != stale["intro"], "an unstamped cache must be treated as stale"
+    assert session.practical_context["_materialization"]["build"] == content_build.CONTENT_BUILD
+
+    # a cache from THIS build is still reused — versioning must not defeat caching
+    marker = {"type": "materialization", "intro": ["current build"], "directions": []}
+    pc = dict(session.practical_context)
+    pc["_materialization"] = content_build.stamped(marker)
+    session.practical_context = pc
+    assert next_step(db, session)["interaction"]["intro"] == ["current build"]
+
+
+# ---------------- plain-language guard ----------------
+
+BANNED_REGISTER = [
+    "unfold", "tapestry", "essence of", "resonate", "embrace", "lean into",
+    "hold space", "authentic self", "your journey", "deeper truth", "horizon",
+    "the shape of you", "whisper", "compounding", "precedes you",
+]
+
+
+def test_user_facing_copy_stays_in_plain_language():
+    """The register is a product decision, not a matter of taste.
+
+    This is sold to people mid-workday who want to know what their experience is
+    worth. Copy that reads like a poem costs comprehension, and comprehension is
+    the whole mechanism — a person who doesn't understand a claim can't tell us
+    it's wrong.
+    """
+    from app.dimensions import DIMENSIONS, FRAGMENTS
+
+    for dim, meta in DIMENSIONS.items():
+        for pole in ("pos", "neg"):
+            phrase = meta[pole].lower()
+            for banned in BANNED_REGISTER:
+                assert banned not in phrase, f"{dim}.{pole} slipped back into {banned!r}"
+            # these get slotted into "you chose X" — keep them short enough to read
+            assert len(meta[pole].split()) <= 9, f"{dim}.{pole} is too long to read inline"
+    for dim, pair in FRAGMENTS.items():
+        for frag in pair:
+            assert len(frag.split()) <= 5, f"{dim} fragment {frag!r} is too long to float on screen"
+
+
+def test_every_dimension_phrase_reads_in_the_sentences_that_use_it():
+    """Phrases are composed into fixed sentence frames; each must survive them."""
+    from app.dimensions import DIMENSIONS, dim_phrase
+
+    for dim in DIMENSIONS:
+        for score in (1, -1):
+            phrase = dim_phrase(dim, score)
+            assert phrase and phrase[0].islower(), \
+                f"{dim} phrase must start lowercase to sit mid-sentence: {phrase!r}"
+            assert not phrase.endswith("."), f"{dim} phrase must not carry its own full stop"

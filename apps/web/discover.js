@@ -26,7 +26,13 @@
   let root, stage, chapterEl, progressEl, fieldEl, threadEl;
   let assistTimer = null;
   let helpUsed = false;
-  let sessionId = localStorage.getItem("unbify-discover-session") || null;
+  /* ?discover=fresh starts a brand-new session instead of resuming.
+     Resuming is right for a real visitor — the story is not meant to be
+     re-answered — but it makes the journey impossible to walk twice while
+     working on it, since every reload lands on whatever state you left. */
+  const FRESH = /[?&]discover=fresh\b/.test(location.search);
+  if (FRESH) localStorage.removeItem("unbify-discover-session");
+  let sessionId = FRESH ? null : (localStorage.getItem("unbify-discover-session") || null);
   let shownAt = 0;
   let busy = false;
 
@@ -234,7 +240,7 @@
     if (busy) return;
     busy = true;
     const marks = { tap: performance.now() };
-    clearTimeout(assistTimer);
+    disarmAssist();
     root.querySelector(".dx-assist")?.remove();
     if (helpUsed && response && !response.helpUsed) response.helpUsed = true;
     const elapsedMs = Date.now() - shownAt;
@@ -596,43 +602,92 @@
     setTimeout(done, 500 + lines.length * 1350 + 1100);
   }
 
-  /* gentle latency assist — configurable by interaction type; never pressure */
-  const ASSIST_DELAY = { micro_reflection: 40000, forced_rank: 30000, object_sort: 30000, default: 20000 };
+  /* Offer help when the person has actually stalled — not when a clock ran out.
+     The old version armed a fixed timer the moment a question appeared, so it
+     interrupted people who were still reading the question, dragging a slider,
+     or halfway through typing a sentence. Now the countdown restarts on any
+     real activity, and only genuine stillness reaches the end of it. */
+  const IDLE_MS = { micro_reflection: 90000, forced_rank: 75000, object_sort: 75000, default: 60000 };
+  const ACTIVITY = ["pointerdown", "pointermove", "keydown", "input", "wheel", "touchstart", "touchmove"];
+  let assistTeardown = null;
 
   function armAssist(it) {
-    clearTimeout(assistTimer);
+    disarmAssist();
     helpUsed = false;
     if (["reveal", "possible_lives", "final", "workspace"].includes(it.type)) return;
-    const delay = ASSIST_DELAY[it.type] || ASSIST_DELAY.default;
-    assistTimer = setTimeout(() => showAssist(it), delay);
+    const wait = IDLE_MS[it.type] || IDLE_MS.default;
+    let lastActive = Date.now();
+    const bump = () => { lastActive = Date.now(); };
+    const tick = () => {
+      /* a backgrounded tab is someone who left, not someone who is stuck —
+         waiting there would just have the prompt sitting stale on return */
+      if (document.hidden) { bump(); return; }
+      if (Date.now() - lastActive >= wait) { disarmAssist(); showAssist(it); }
+    };
+    ACTIVITY.forEach(e => root.addEventListener(e, bump, { passive: true, capture: true }));
+    document.addEventListener("visibilitychange", bump);
+    assistTimer = setInterval(tick, 1000);
+    assistTeardown = () => {
+      ACTIVITY.forEach(e => root.removeEventListener(e, bump, { capture: true }));
+      document.removeEventListener("visibilitychange", bump);
+    };
+  }
+
+  function disarmAssist() {
+    if (assistTimer) { clearInterval(assistTimer); assistTimer = null; }
+    if (assistTeardown) { assistTeardown(); assistTeardown = null; }
   }
 
   function showAssist(it) {
     if (!stage.firstElementChild || root.querySelector(".dx-assist")) return;
     const bar = document.createElement("div");
     bar.className = "dx-assist";
-    bar.innerHTML = `<span>Taking a minute?</span>`;
+    bar.innerHTML = `<span>Taking a minute? Need some help?</span>`;
     const helpBtn = document.createElement("button");
-    helpBtn.textContent = "Help me choose";
-    helpBtn.addEventListener("click", () => {
+    helpBtn.textContent = "Show me what this means";
+    /* No skip. Skipping a hard question produces the worst kind of evidence —
+       an answer given to make a prompt go away — and the question is hard
+       because the choice is close, which is exactly the useful part. */
+    helpBtn.addEventListener("click", async () => {
       helpUsed = true;
-      bar.remove();
-      const scene = stage.firstElementChild;
-      if (scene && !scene.querySelector(".dx-help")) {
-        const h = document.createElement("p");
-        h.className = "dx-help";
-        h.textContent = it.help || "Go with your first instinct — there's no better answer here.";
-        const anchor = scene.querySelector(".dx-support") || scene.querySelector(".dx-headline");
-        if (anchor) anchor.after(h); else scene.prepend(h);
+      helpBtn.disabled = true;
+      helpBtn.textContent = "One moment…";
+      let help;
+      try {
+        help = await api(`/sessions/${sessionId}/interactions/${it.id}/help`, {});
+      } catch (e) {
+        help = null;
       }
+      bar.remove();
+      showHelpScene(help);
     });
-    const skipBtn = document.createElement("button");
-    skipBtn.textContent = "Skip this";
-    skipBtn.addEventListener("click", () => { bar.remove(); respond(it.id, { skipped: true, helpUsed }, skipBtn); });
     bar.appendChild(helpBtn);
-    bar.appendChild(skipBtn);
     root.appendChild(bar);
     requestAnimationFrame(() => bar.classList.add("in"));
+  }
+
+  /* The help is a scene, not a hint: somewhere ordinary the choice actually
+     happens, and what each side costs once you're standing in it. */
+  function showHelpScene(help) {
+    const scene = stage.firstElementChild;
+    if (!scene || scene.querySelector(".dx-help")) return;
+    const box = document.createElement("div");
+    box.className = "dx-help";
+    if (!help || !help.moment) {
+      box.innerHTML = `<p class="dx-help-close">Say it the way you'd say it out loud. The first version is usually the honest one.</p>`;
+    } else {
+      const rows = (help.options || []).map(o =>
+        `<div class="dx-help-opt"><span class="dx-help-opt-label">${esc(o.label)}</span>
+           <span class="dx-help-opt-means">${esc(o.means)}</span></div>`).join("");
+      box.innerHTML = `
+        <p class="dx-help-label">Say you're here</p>
+        <p class="dx-help-moment">${esc(help.moment)}</p>
+        ${rows ? `<div class="dx-help-opts">${rows}</div>` : ""}
+        <p class="dx-help-close">${esc(help.close || "")}</p>`;
+    }
+    const anchor = scene.querySelector(".dx-support") || scene.querySelector(".dx-headline");
+    if (anchor) anchor.after(box); else scene.prepend(box);
+    requestAnimationFrame(() => box.classList.add("in"));
   }
 
   function newSceneFresh() {
@@ -1171,17 +1226,22 @@
       const card = document.createElement("div");
       card.className = "dx-life";
       card.dataset.key = l.key;
+      /* a row is only worth its label if it carries content — an "n/a" printed
+         under a heading reads as a broken form, not as honesty */
+      const row_ = (dt, v) => v ? `<dt>${dt}</dt><dd>${esc(v)}</dd>` : "";
+      const meta = [l.risk ? "risk · " + esc(l.risk) : "", l.timeToValue ? esc(l.timeToValue) : ""]
+        .filter(Boolean).map(x => `<span>${x}</span>`).join("");
       card.innerHTML = `
         <h3>${esc(l.name)}</h3>
         <p class="ess">${esc(l.essence)}</p>
         <dl>
-          <dt>Why you</dt><dd>${esc(l.whyYou)}</dd>
-          <dt>Why now</dt><dd>${esc(l.whyNow)}</dd>
-          <dt>It would use</dt><dd>${esc(l.uses)}</dd>
-          <dt>It would require</dt><dd>${esc(l.requires)}</dd>
-          <dt>The honest friction</dt><dd>${esc(l.friction)}</dd>
+          ${row_("Why you", l.whyYou)}
+          ${row_("Why now", l.whyNow)}
+          ${row_("It would use", l.uses)}
+          ${row_("It would require", l.requires)}
+          ${row_("The honest friction", l.friction)}
         </dl>
-        <div class="meta"><span>risk · ${esc(l.risk)}</span><span>${esc(l.timeToValue)}</span></div>`;
+        ${meta ? `<div class="meta">${meta}</div>` : ""}`;
       row.appendChild(card);
     });
     scene.appendChild(row);
@@ -1263,6 +1323,64 @@
     return s;
   }
 
+  /* The operator probe: one question at a time, in a modal, each answer
+     re-routing the surfaces immediately so the questions visibly do work. */
+  function openProbe(step, readOut, paintSurfaces, cta) {
+    const back = document.createElement("div");
+    back.className = "dx-probe-back";
+    const box = document.createElement("div");
+    box.className = "dx-probe";
+    back.appendChild(box);
+    document.body.appendChild(back);
+
+    const close = () => { back.remove(); };
+    const paintStep = st => {
+      box.innerHTML = `<p class="dx-probe-step">Question ${st.stepIndex}</p>
+        <h3 class="dx-probe-q">${esc(st.question)}</h3>`;
+      const opts = document.createElement("div");
+      opts.className = "dx-probe-opts";
+      st.options.forEach(o => {
+        const b = document.createElement("button");
+        b.className = "dx-pill";
+        b.textContent = o.label;
+        b.addEventListener("click", async () => {
+          b.classList.add("picked");
+          opts.querySelectorAll("button").forEach(x => { x.disabled = true; });
+          let res;
+          try {
+            res = await api(`/sessions/${sessionId}/venture/probe`,
+                            { stepId: st.id, optionId: o.id });
+          } catch (e) {
+            box.innerHTML = `<p class="dx-probe-q">That didn't save. You can close this and keep going — nothing is lost.</p>`;
+            return;
+          }
+          if (res.read) readOut.textContent = res.read;
+          paintSurfaces(res.surfaces);
+          if (res.next) paintStep(res.next);
+          else {
+            box.innerHTML = `<h3 class="dx-probe-q">That's enough to work with.</h3>
+              <p class="dx-probe-done">${esc(res.read || "")}</p>`;
+            const d = document.createElement("button");
+            d.className = "dx-pill";
+            d.textContent = "See what fits →";
+            d.addEventListener("click", close);
+            box.appendChild(d);
+            if (cta) { cta.textContent = "Answered"; cta.classList.add("picked"); }
+          }
+        });
+        opts.appendChild(b);
+      });
+      box.appendChild(opts);
+      const skip = document.createElement("button");
+      skip.className = "dx-pill dx-pill-quiet";
+      skip.textContent = "Not now";
+      skip.addEventListener("click", close);
+      box.appendChild(skip);
+    };
+    paintStep(step);
+    back.addEventListener("click", e => { if (e.target === back) close(); });
+  }
+
   function renderMaterialization(scene, it) {
     stage.classList.add("dx-scroll");
     scene.classList.add("dx-matpage");
@@ -1273,7 +1391,7 @@
     opener.innerHTML = `
       <p class="dx-mat-claim">You don't need another personality result.</p>
       <p class="dx-mat-claim strong">You need to know what this is worth.</p>
-      <p class="dx-mat-sub">Here's what we can work with.</p>`;
+      <p class="dx-mat-sub">So here's what we've actually got.</p>`;
     scene.appendChild(opener);
 
     const intro = document.createElement("div");
@@ -1312,7 +1430,7 @@
 
     /* CAPABILITIES */
     if ((it.capabilities || []).length) {
-      const s = matSection("What you can actually do", "Capabilities, with what supports each one.");
+      const s = matSection("What you can actually do", "Each one, and what in your answers backs it up.");
       const grid = document.createElement("div");
       grid.className = "dx-mat-grid";
       it.capabilities.forEach(c => {
@@ -1330,7 +1448,7 @@
 
     /* YOUR LEVERAGE */
     if ((it.leverage || []).length) {
-      const s = matSection("What's already compounding", "You may not need to start from zero.");
+      const s = matSection("What you already have", "You're not starting from nothing.");
       const grid = document.createElement("div");
       grid.className = "dx-mat-grid";
       it.leverage.forEach(l => {
@@ -1348,7 +1466,7 @@
 
     /* WHAT IS STILL MISSING */
     if ((it.gaps || []).length) {
-      const s = matSection("What would change the picture", "Not deficiencies — missing information.");
+      const s = matSection("What we still don't know", "Not things you're bad at — things we haven't asked yet.");
       const list = document.createElement("div");
       list.className = "dx-mat-gaps";
       it.gaps.forEach(g => {
@@ -1364,8 +1482,8 @@
 
     /* DIRECTIONS + their experiments */
     if ((it.directions || []).length) {
-      const s = matSection("Directions worth examining",
-                           "Not predictions. Each one shows why it appeared and the cheapest way to test it.");
+      const s = matSection("Worth a look",
+                           "Not predictions. Each one shows why it came up and the cheapest way to check it.");
       const row = document.createElement("div");
       row.className = "dx-lives dx-mat-directions";
       it.directions.forEach(d => {
@@ -1410,6 +1528,110 @@
       });
       s.appendChild(row);
       scene.appendChild(s);
+    }
+
+    /* OPERATOR: strengths, thin spots, and what the market evidence actually
+       supports. Role directions are absent by design for this audience. */
+    const v = it.venture;
+    if (v) {
+      if ((v.strengths || []).length) {
+        const s = matSection(v.heading || "What you're actually strong at", v.supportingText);
+        const grid = document.createElement("div");
+        grid.className = "dx-mat-grid";
+        v.strengths.forEach(c => {
+          const card = document.createElement("div");
+          card.className = "dx-mat-card";
+          card.innerHTML = `
+            <div class="dx-mat-top"><span class="dx-mat-name">${esc(c.label)}</span>
+              <span class="dx-mat-strength">${esc(c.strength)}</span></div>
+            <p class="dx-mat-support">${esc(c.inYourBusiness)}</p>`;
+          grid.appendChild(card);
+        });
+        s.appendChild(grid);
+        scene.appendChild(s);
+      }
+      if ((v.thinSpots || []).length) {
+        const s = matSection("Where you're exposed",
+                             "Not failings — things we haven't seen yet that change what you should do next.");
+        const list = document.createElement("div");
+        list.className = "dx-mat-gaps";
+        v.thinSpots.forEach(t => {
+          const row = document.createElement("div");
+          row.className = "dx-mat-gap";
+          row.innerHTML = `<p class="dx-gap-label">${esc(t.label)}</p>
+            <p class="dx-gap-why">${esc(t.why)}</p>`;
+          list.appendChild(row);
+        });
+        s.appendChild(list);
+        scene.appendChild(s);
+      }
+      const m = v.market;
+      if (m) {
+        const s = matSection(m.heading, m.occupation ? `For ${m.occupation}.` : null);
+        if (m.note) {
+          const n = document.createElement("p");
+          n.className = "dx-mkt-abstain";
+          n.textContent = m.note;
+          s.appendChild(n);
+        }
+        /* the numbers stay visible even when they are not strong enough to be
+           stated as fact — hiding them would make the abstention unverifiable */
+        (m.readings || []).forEach(r => {
+          const row = document.createElement("div");
+          row.className = "dx-mkt-row" + (r.usable ? " usable" : "");
+          const prov = `${r.sourceCount} source${r.sourceCount === 1 ? "" : "s"}` +
+            (r.freshnessDays !== null && r.freshnessDays !== undefined ? ` · ${r.freshnessDays}d old` : "");
+          row.innerHTML = `
+            <div class="dx-mkt-head"><span class="dx-mkt-label">${esc(r.label)}</span>
+              <span class="dx-mkt-verdict">${esc(r.reading || "not enough evidence to say")}</span></div>
+            <p class="dx-mkt-prov">${esc(prov)}${r.sources && r.sources.length ? " · " + esc(r.sources.join(", ")) : ""}</p>`;
+          s.appendChild(row);
+        });
+        scene.appendChild(s);
+      }
+    }
+
+    /* EXPLORE — the opt-in. Nothing is recommended until the person asks. */
+    if (it.explore) {
+      const s = document.createElement("section");
+      s.className = "dx-mat-sec dx-close-sec dx-explore";
+      s.innerHTML = `<p class="dx-explore-note">${esc(it.explore.note || "")}</p>`;
+      const surfaces = document.createElement("div");
+      surfaces.className = "dx-surfaces";
+      const readOut = document.createElement("p");
+      readOut.className = "dx-explore-read";
+
+      const paintSurfaces = list => {
+        surfaces.innerHTML = "";
+        (list || []).forEach(x => {
+          const card = document.createElement("div");
+          card.className = "dx-surface";
+          card.innerHTML = `
+            <div class="dx-surface-top"><span class="dx-surface-name">${esc(x.name)}</span>
+              <span class="dx-surface-soon">coming soon</span></div>
+            <p class="dx-surface-line">${esc(x.line)}</p>
+            <p class="dx-surface-detail">${esc(x.detail)}</p>
+            <p class="dx-surface-why">${esc(x.because)}</p>`;
+          surfaces.appendChild(card);
+        });
+      };
+
+      const btn = document.createElement("button");
+      btn.className = "dx-pill dx-explore-cta";
+      btn.textContent = it.explore.cta || "Explore something interesting for you →";
+      s.appendChild(btn);
+      s.appendChild(readOut);
+      s.appendChild(surfaces);
+      scene.appendChild(s);
+
+      if (it.explore.read) readOut.textContent = it.explore.read;
+      paintSurfaces(it.explore.surfaces);
+
+      btn.addEventListener("click", () => {
+        if (it.explore.next) openProbe(it.explore.next, readOut, paintSurfaces, btn);
+        else { btn.classList.add("picked"); btn.textContent = "Answered"; }
+      });
+      if (!it.explore.next) { btn.textContent = "Answered"; btn.classList.add("picked"); }
     }
 
     /* PRODUCT ROUTES — need first, product only as the answer to it */

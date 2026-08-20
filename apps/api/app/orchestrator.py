@@ -7,7 +7,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from . import closings, content_policy, interpretation, knowledge, materialization, statemachine
+from . import closings, content_build, content_policy, interpretation, knowledge, materialization, statemachine
 from . import narrative_director as director
 from . import thresholds as th
 from .catalog import INTERACTIONS
@@ -53,12 +53,12 @@ def next_step(db: Session, session: DiscoverSession) -> dict:
         return _envelope(session, _story_close_payload(session))
 
     if state == "MATERIALIZATION":
-        cache = (session.practical_context or {}).get("_materialization")
+        cache = content_build.fresh((session.practical_context or {}).get("_materialization"))
         if cache:
             return _envelope(session, cache)
         payload = materialization.build(db, session)
         pc = dict(session.practical_context or {})
-        pc["_materialization"] = payload
+        pc["_materialization"] = content_build.stamped(payload)
         session.practical_context = pc
         emit(db, session.id, "materialization.built",
              {"directions": len(payload.get("directions", [])),
@@ -563,22 +563,22 @@ def _make_reveal(db, session, contradiction: bool) -> dict:
                  "evidenceCount": a.get("evidence_count", 0)},
                 "recognition, slightly surprising",
                 [f"{a.get('evidence_count', 2)} answers in, one thing keeps returning.",
-                 f"Across very different questions, the same pull: {dim_fragment(a['dim'], a['estimate'])}.",
-                 "A pattern has outlived several different questions now."], max_words=18)
+                 f"Different questions, same answer underneath: {dim_fragment(a['dim'], a['estimate'])}.",
+                 "The same thing has come up across several different questions now."], max_words=18)
             lines = [opener] if opener else []
             lines.append(f"You keep choosing {dim_phrase(a['dim'], a['estimate'])}…")
             lines.append(f"…but never at the cost of {dim_phrase(b['dim'], b['estimate'])}." if b
-                         else "…and you don't seem to hesitate about it.")
+                         else "…and you don't seem to think twice about it.")
             insight = {"summary": f"leans {a['dim']}" + (f" balanced by {b['dim']}" if b else ""),
                        "dims": [{"dim": t["dim"], "dir": 1 if t["estimate"] >= 0 else -1} for t in tops[:2]]}
         else:
             opener = director.generate(
                 db, session, "CREATE_CURIOSITY", {"evidence": "thin", "phase": "early"},
                 "gentle honesty",
-                ["Nothing loud yet — but you don't reach for the obvious option.",
-                 "Early days: the obvious answers keep losing to less obvious ones."], max_words=16)
+                ["Nothing obvious yet — except that you keep skipping the obvious answer.",
+                 "Early days, but the safe option keeps losing."], max_words=16)
             lines = [opener] if opener else []
-            lines.append("Let's keep going — the shape isn't settled yet.")
+            lines.append("Let's keep going — there isn't enough here yet to say anything useful.")
         out = gateway.generate(db, "early_reveal_v1", facts)
         if out and isinstance(out.get("lines"), list) and len(out["lines"]) >= 2:
             lines = [str(l)[:140] for l in out["lines"][:4]]
@@ -591,7 +591,7 @@ def _make_reveal(db, session, contradiction: bool) -> dict:
     risk = knowledge.overinterpretation_risk(0.7, top_conf)
     if not contradiction and tops and top_conf < th.MAY_TEST:
         lines = [l for l in lines]
-        lines.append("Early read — hold it loosely; the next answers can still overturn it.")
+        lines.append("Early days — don't take this as settled. The next few answers could change it.")
     lines = [l for l in lines if content_policy.validate(l)]
     facts["overinterpretationRisk"] = risk
     reveal = Reveal(session_id=session.id, kind="contradiction" if contradiction else "pattern",
@@ -605,15 +605,133 @@ def _make_reveal(db, session, contradiction: bool) -> dict:
 
 
 FAMILY_DIRECTIONS = {
-    "energy": "work with more room to move than you have now",
-    "cognitive": "work that leans on how you actually think",
-    "social": "work where the people layer is the work",
-    "execution": "work rewarded for finishing, not just starting",
-    "creative": "work where making something is the point",
-    "economic": "work with a more direct line to what it earns",
-    "leverage": "work that compounds what you already know",
-    "ai_era": "work that multiplies through tools instead of hours",
+    "energy": "work where you decide how it gets done",
+    "cognitive": "work that pays you for how you think",
+    "social": "work where dealing with people is the job",
+    "execution": "work that pays for finishing, not starting",
+    "creative": "work where you make the thing",
+    "economic": "work where you see what you earn from it",
+    "leverage": "work that builds on what you already know",
+    "ai_era": "work where tools do more of the hours",
 }
+
+
+def _abstained_directions(db, session) -> dict:
+    """The pre-threshold Alignment screen, read as an audit rather than a form.
+
+    Every field is derived from this person's own answers. Where we genuinely
+    do not know something we name the specific missing input — never "n/a",
+    which asks the reader to feel a gap they cannot see.
+    """
+    from .dimensions import DIMENSIONS
+    from .signals import thinnest_dims
+    ev = knowledge.role_analysis_evidence(session)
+    tops = top_dims(session, 6, min_confidence=th.DO_NOT_SURFACE)
+    if not tops:
+        tops = top_dims(session, 6, min_confidence=0.1)
+
+    grouped: dict[str, list] = {}
+    for t in tops:
+        grouped.setdefault(DIMENSIONS[t["dim"]]["family"], []).append(t)
+    ordered = list(grouped.items())[:3]
+    if not ordered:
+        # even with almost nothing, the screen must hold something honest
+        ordered = [(fam, []) for fam in ("energy", "cognitive", "execution")]
+
+    # total_evidence() sums per-dimension hits — one answer can move four
+    # dimensions, so it overstates "answers" by a factor. On a screen whose
+    # only asset is credibility, count the actual responses.
+    answers = 0
+    if db is not None:
+        from .models import EvidenceItem
+        answers = db.query(EvidenceItem).filter_by(session_id=session.id).count()
+    lives = []
+    for rank, (fam, dims) in enumerate(ordered):
+        lead = dims[0] if dims else None
+        support = dims[1] if len(dims) > 1 else None
+        n = int(lead.get("evidence_count", 0)) if lead else 0
+        conf = sum(d.get("confidence", 0) for d in dims) / len(dims) if dims else 0.2
+
+        if lead:
+            # the short fragments carry the recognition; the full phrases carry
+            # the argument. Saying both in the same field just sounds repetitive.
+            frags = [dim_fragment(d["dim"], d["estimate"]) for d in dims[:2]]
+            essence = ("what you keep picking: " + " and ".join(frags))
+            why_you = (f"Across {n} answers you chose {dim_phrase(lead['dim'], lead['estimate'])}"
+                       if n >= 2 else
+                       f"You reached for {dim_phrase(lead['dim'], lead['estimate'])}")
+            why_you += (f", and {dim_phrase(support['dim'], support['estimate'])} came with it."
+                        if support else " — and you didn't go back on it.")
+        else:
+            essence = "we don't have enough from you yet to say much here"
+            why_you = "Nothing here is earned yet. This is the question, not the answer."
+
+        if not lead:
+            why_now = "We didn't pick this from your answers. It's just a broad place to start looking."
+        elif rank == 0:
+            why_now = "This is the clearest thing you've shown us so far."
+        else:
+            why_now = "Weaker than the first one, but it keeps showing up."
+
+        # only name what we have genuinely never asked about — claiming a blank
+        # where the user already answered is the fastest way to lose them
+        blank = [d for d in thinnest_dims(session, [fam], 3)
+                 if not (session.dimensions or {}).get(d, {}).get("evidence_count")][:2]
+        requires = ("Nothing from you yet. What would help: we still don't know how you feel about "
+                    + " or ".join(dim_fragment(d, 1) for d in blank) + "."
+                    if blank else "Nothing from you yet — this is exploration, not a plan.")
+
+        # a real tension is the SAME dimension pulling both ways, which the
+        # session already tracks. Two different dimensions with opposite signs
+        # are not a disagreement — claiming otherwise invents a conflict the
+        # reader knows they don't have, and the whole screen loses credibility.
+        clash = next((c for c in (session.contradictions or [])
+                      if not c.get("explored")
+                      and DIMENSIONS.get(c.get("dim"), {}).get("family") == fam), None)
+        if not lead:
+            friction = ("We don't have a read on this yet. Picking it just tells us where to look next.")
+        elif clash:
+            friction = (f"Your own evidence argues both ways here: part of it wants "
+                        f"{dim_phrase(clash['dim'], 1)}, part wants {dim_phrase(clash['dim'], -1)}. "
+                        "We're not averaging that away.")
+        elif n and n < th.HYPOTHESIS_MIN_EVIDENCE + 1:
+            friction = (f"{n} answers is a hint, not proof. It could just as easily be the situation "
+                        f"you were in at the time.")
+        elif rank == 0:
+            friction = ("We've only seen your instincts, not your situation. Until we know what your "
+                        "week actually looks like, this is a direction, not a plan.")
+        else:
+            friction = ("We've never seen this one under real pressure. Nothing you've answered so far "
+                        "cost you anything.")
+
+        lives.append({"key": fam, "name": FAMILY_DIRECTIONS.get(fam, fam),
+                      "essence": essence, "whyYou": why_you, "whyNow": why_now,
+                      "requires": requires, "friction": friction,
+                      "confidence": max(25, min(60, int(conf * 100)))})
+
+    missing = []
+    gap_facts = ev["factsNeeded"] - ev["facts"]
+    gap_dims = ev["supportedNeeded"] - ev["supported"]
+    if gap_facts > 0:
+        missing.append(f"{gap_facts} more {'piece' if gap_facts == 1 else 'pieces'} of real-world context "
+                       "(what you do now, what you've been paid for, how much time you actually have)")
+    if gap_dims > 0:
+        missing.append(f"{gap_dims} more {'pattern' if gap_dims == 1 else 'patterns'} solid enough to build a plan on")
+    seen = (f"Here's what {answers} answers actually show. " if answers >= 2
+            else "Here's everything we can honestly say so far. ")
+    supporting = (seen + "We don't yet have enough evidence to rank specific jobs or paths against it — "
+                  + ("what's missing: " + "; ".join(missing) + "." if missing else
+                     "we still don't know enough about your actual work situation."))
+
+    public = {
+        "headline": "What your answers say so far.",
+        "supportingText": supporting,
+        "lives": lives,
+        "ask": "Which of these reads most like you?",
+        "options": [*({"id": l["key"], "label": l["name"]} for l in lives),
+                    {"id": "none", "label": "None of them, fully"}],
+    }
+    return public
 
 
 def _make_possible_lives(db, session) -> dict:
@@ -621,37 +739,11 @@ def _make_possible_lives(db, session) -> dict:
     # broad direction families first, titles only past the threshold
     allowed, reason = knowledge.role_analysis_allowed(session)
     if not allowed:
-        from .dimensions import DIMENSIONS
-        tops = top_dims(session, 3, min_confidence=th.DO_NOT_SURFACE)
-        if not tops:
-            tops = top_dims(session, 3, min_confidence=0.1)
-        families = []
-        for t in tops:
-            fam = DIMENSIONS[t["dim"]]["family"]
-            if fam not in [f["id"] for f in families]:
-                families.append({"id": fam, "label": FAMILY_DIRECTIONS.get(fam, fam)})
-        if not families:
-            # even with almost nothing, the screen must hold something honest
-            families = [{"id": fam, "label": FAMILY_DIRECTIONS[fam]}
-                        for fam in ("energy", "cognitive", "execution")]
+        # Abstaining is not an excuse to show a blank form. We cannot rank roles
+        # yet, but we can read back the evidence we DO hold — the person has to
+        # be able to recognise themselves here, or the honesty reads as evasion.
         emit(db, session.id, "opportunity.abstained", {"reason": reason})
-        public = {
-            "headline": "Broad directions — not verdicts.",
-            "supportingText": "We can explore directions, but we don't yet have enough evidence "
-                              "to rank specific paths responsibly. These are families, not roles.",
-            "lives": [{"key": f["id"], "name": f["label"],
-                       "essence": "a direction worth examining, not a recommendation",
-                       "whyYou": "your strongest evidence so far points this way",
-                       "whyNow": "more professional context would sharpen this",
-                       "uses": "the pattern of your supported signals",
-                       "requires": "nothing yet — this is exploration",
-                       "friction": "unknown — we haven't earned that analysis",
-                       "risk": "n/a", "timeToValue": "n/a", "confidence": 35}
-                      for f in families[:3]],
-            "ask": "Which direction pulls at you?",
-            "options": [*({"id": f["id"], "label": f["label"]} for f in families[:3]),
-                        {"id": "none", "label": "None of them, fully"}],
-        }
+        public = _abstained_directions(db, session)
         pc = dict(session.practical_context or {})
         pc["_lives"] = public["lives"]
         session.practical_context = pc
@@ -692,8 +784,8 @@ def _make_possible_lives(db, session) -> dict:
     session._lives_cache = None  # noqa - transient
     server = {"rec_set": rec_set.id, "lives": lives}
     public = {
-        "headline": "Three lives you could actually live.",
-        "supportingText": "Not predictions. Possibilities — read them slowly.",
+        "headline": "Three ways this could actually go.",
+        "supportingText": "Not predictions. Just three real options, worth reading properly.",
         "lives": lives, "ask": "Which one pulls at you?",
         "options": [*({"id": l["key"], "label": l["name"]} for l in lives), {"id": "none", "label": "None of them, fully"}],
     }
@@ -707,17 +799,17 @@ def _factors_to_why(factors: dict) -> str:
     tops = sorted(((k, v) for k, v in factors.items() if k.startswith("fit:") and v > 0),
                   key=lambda kv: kv[1], reverse=True)[:2]
     if not tops:
-        return "The shape of your evidence points here more than anywhere else."
+        return "Your answers point here more than anywhere else."
     names = [k.split(":")[1].replace("_", " ") for k, _ in tops]
-    return f"Your strongest signals — {' and '.join(names)} — concentrate exactly where this path pays."
+    return f"What you're strongest at — {' and '.join(names)} — is exactly what this pays for."
 
 
 def _factors_to_friction(factors: dict) -> str:
     negs = sorted(((k, v) for k, v in factors.items() if v < -0.05), key=lambda kv: kv[1])[:1]
     if not negs:
-        return "Mostly the discipline of starting small."
+        return "Mostly just making yourself start small."
     name = negs[0][0].replace("_", " ").replace("fit:", "")
-    return f"The honest tension: {name}."
+    return f"The catch: {name}."
 
 
 # ---------------- opportunity map + activation ----------------
@@ -725,10 +817,10 @@ def _factors_to_friction(factors: dict) -> str:
 def _story_close_payload(session) -> dict:
     """The story ends here. The product begins after an explicit continue."""
     return {"type": "story_close",
-            "lines": ["You came here looking for direction.",
-                      "We didn't find one label.",
-                      "We found a pattern — and the parts that are still open.",
-                      "Now let's see what it can actually do."],
+            "lines": ["You came here wanting a direction.",
+                      "We didn't find a label to put on you.",
+                      "We found a pattern in how you choose — and the parts we still don't know.",
+                      "Now let's see what that's actually worth."],
             "cta": "See what this can become →",
             "next": "MATERIALIZATION"}
 

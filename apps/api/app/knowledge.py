@@ -234,16 +234,26 @@ def cascade_invalidate(db: Session, session: DiscoverSession, construct: str) ->
 
 # ---------------- L4 gate: professional / role-level analysis ----------------
 
-def role_analysis_allowed(session: DiscoverSession) -> tuple[bool, str]:
-    """PART 59: minimum evidence before ranking specific directions."""
+def role_analysis_evidence(session: DiscoverSession) -> dict:
+    """The raw counts behind the L4 gate. Abstention screens use these to tell
+    the user exactly what is missing — "not enough evidence" is a verdict about
+    us, and a person cannot recognise themselves in it."""
     pc = session.practical_context or {}
     fact_keys = [k for k in pc if not k.startswith("_")
                  and k not in ("notes", "resonant_life")]
-    if len(fact_keys) < th.ROLE_ANALYSIS_MIN_FACTS:
-        return False, f"professional context coverage too low ({len(fact_keys)}/{th.ROLE_ANALYSIS_MIN_FACTS} facts)"
     strong = [d for d, s in (session.dimensions or {}).items()
               if s.get("confidence", 0) >= th.PROFESSIONAL_SURFACE
               and s.get("evidence_count", 0) >= th.HYPOTHESIS_MIN_EVIDENCE]
-    if len(strong) < th.ROLE_ANALYSIS_MIN_FEATURES:
-        return False, f"relevant feature confidence too low ({len(strong)}/{th.ROLE_ANALYSIS_MIN_FEATURES} supported features)"
+    return {"facts": len(fact_keys), "factsNeeded": th.ROLE_ANALYSIS_MIN_FACTS,
+            "supported": len(strong), "supportedNeeded": th.ROLE_ANALYSIS_MIN_FEATURES,
+            "factKeys": fact_keys, "supportedDims": strong}
+
+
+def role_analysis_allowed(session: DiscoverSession) -> tuple[bool, str]:
+    """PART 59: minimum evidence before ranking specific directions."""
+    ev = role_analysis_evidence(session)
+    if ev["facts"] < ev["factsNeeded"]:
+        return False, f"professional context coverage too low ({ev['facts']}/{ev['factsNeeded']} facts)"
+    if ev["supported"] < ev["supportedNeeded"]:
+        return False, f"relevant feature confidence too low ({ev['supported']}/{ev['supportedNeeded']} supported features)"
     return True, "evidence sufficient"

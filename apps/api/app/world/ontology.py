@@ -18,6 +18,17 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9\s]", " ", (text or "").lower())).strip()
 
 
+# Occupational head nouns that carry no information on their own. Sharing only
+# one of these with an alias must never be enough to claim a match.
+GENERIC_TITLE_TOKENS = {
+    "officer", "manager", "teacher", "engineer", "technician", "specialist",
+    "assistant", "director", "lead", "leader", "head", "worker", "consultant",
+    "analyst", "coordinator", "supervisor", "operator", "professional",
+    "agent", "executive", "administrator", "associate", "staff", "senior",
+    "junior", "chief", "principal", "officer's", "service", "services",
+}
+
+
 def resolve_title(db: Session, raw_title: str) -> dict:
     """→ {status: resolved|ambiguous|unknown, candidates: [{occupationId, label, confidence}]}
     Ambiguity is preserved: 'electrician' resolves, but 'electrical technician'
@@ -38,7 +49,16 @@ def resolve_title(db: Session, raw_title: str) -> dict:
         a_tokens = set(alias.alias.split())
         if not a_tokens:
             continue
-        overlap = len(tokens & a_tokens) / len(tokens | a_tokens)
+        shared = tokens & a_tokens
+        # A single generic head noun is not evidence of anything: "chief vibe
+        # officer" shares only "officer" with "supply officer", and "yoga
+        # teacher" shares only "teacher" with "school teacher". Both used to
+        # resolve outright, which then attached real market numbers to the
+        # wrong occupation — a confident answer about someone's own industry
+        # that happens to be wrong.
+        if shared and shared <= GENERIC_TITLE_TOKENS:
+            continue
+        overlap = len(shared) / len(tokens | a_tokens)
         if overlap > 0:
             scored[alias.occupation_id] = max(scored.get(alias.occupation_id, 0), overlap)
     ranked = sorted(scored.items(), key=lambda kv: -kv[1])[:4]

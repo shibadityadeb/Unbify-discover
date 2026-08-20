@@ -154,3 +154,75 @@ def test_malformed_payloads_never_500(client):
         r = client.post(f"/v1/discover/sessions/{sid}/responses",
                         json={"interactionId": it["id"], "response": payload})
         assert r.status_code < 500, f"payload {payload} produced {r.status_code}"
+
+
+def test_decision_help_is_a_scene_and_never_needs_the_llm(client):
+    """Stalling gets real help, not encouragement — and it must work offline.
+
+    The old assist offered "Skip this" beside a one-line platitude. Skipping
+    produces the worst evidence there is (an answer given to dismiss a prompt),
+    so the skip is gone and the help has to actually earn its place.
+    """
+    from app import decision_help
+    from app.catalog import INTERACTIONS
+    from app.db import SessionLocal
+    from app.llm import gateway
+    from app.models import AnonymousIdentity, DiscoverSession, InteractionInstance
+    from app.orchestrator import _public_content
+
+    db = SessionLocal()
+    try:
+        anon = AnonymousIdentity()
+        db.add(anon)
+        db.flush()
+        session = DiscoverSession(anon_id=anon.id, journey_status="SELF_DISCOVERY",
+                                  dimensions={}, practical_context={}, counters={})
+        db.add(session)
+        db.flush()
+
+        original = gateway.generate
+        gateway.generate = lambda *a, **k: None          # LLM unavailable
+        try:
+            for defn in INTERACTIONS:
+                if defn["type"] not in ("binary_tension", "scenario_choice"):
+                    continue
+                inst = InteractionInstance(session_id=session.id, type=defn["type"],
+                                           chapter="SELF_DISCOVERY", content=defn["content"],
+                                           public_content=_public_content(defn))
+                db.add(inst)
+                db.flush()
+                help_ = decision_help.build(db, session, inst)
+                assert help_["moment"], f"{defn['id']} produced no scene"
+                assert help_["options"], f"{defn['id']} produced no option guidance"
+                for opt in help_["options"]:
+                    assert opt["means"], f"{defn['id']}: option {opt['label']!r} has no meaning"
+                # every option the user can see must be covered, none invented
+                shown = {o["label"] for o in (inst.public_content.get("options") or [])}
+                shown |= {inst.public_content[s]["label"] for s in ("left", "right")
+                          if isinstance(inst.public_content.get(s), dict)}
+                assert {o["label"] for o in help_["options"]} == shown
+        finally:
+            gateway.generate = original
+    finally:
+        db.rollback()
+        db.close()
+
+
+def test_stall_prompt_offers_help_not_an_exit():
+    """The stall prompt must not let someone leave a choice unmade.
+
+    Scoped to the assist deliberately: "Rather not say" still exists on
+    free-text questions, and should. Declining to type something personal is a
+    privacy decision; ducking a multiple-choice because it is hard is not, and
+    the answer it produces is noise in the evidence.
+    """
+    from pathlib import Path
+    js = Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js"
+    source = js.read_text()
+    start = source.index("function showAssist(")
+    assist = source[start:source.index("function showHelpScene(")]
+    assert "Skip this" not in assist, "the stall prompt must not offer a way out of deciding"
+    assert "skipped" not in assist, "skipping must not be reachable from the stall prompt"
+    assert "/help" in assist, "the assist must ask the server for real help"
+    # the free-text opt-out survives, on purpose
+    assert "Rather not say" in source

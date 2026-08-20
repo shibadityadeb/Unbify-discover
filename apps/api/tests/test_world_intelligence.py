@@ -260,3 +260,71 @@ def test_market_data_never_alters_human_profile(db):
     recommend(db, session)
     assert dict(session.dimensions or {}) == dims_before
     assert {k for k in session.practical_context if not k.startswith("_")} == pc_keys_before
+
+
+def test_generic_head_noun_never_resolves_an_occupation(db):
+    """A single shared generic noun is not evidence.
+
+    "chief vibe officer" used to resolve to Military Logistics Officer (shared
+    token: "officer") and "yoga teacher" to School Teacher. Both then carried
+    real market signals for the wrong occupation, stated as fact.
+    """
+    from app.world.ontology import resolve_title
+    for junk in ("chief vibe officer", "yoga teacher", "head of growth"):
+        assert resolve_title(db, junk)["status"] == "unknown", \
+            f"{junk!r} must not resolve on a generic head noun alone"
+    # ...while real titles still resolve, including partial ones
+    for good, expected in (("electrician", "Electrician"),
+                           ("industrial electrician", "Industrial Electrician"),
+                           ("nurse", "Registered Nurse")):
+        res = resolve_title(db, good)
+        assert res["status"] == "resolved", f"{good!r} must still resolve"
+        assert res["candidates"][0]["label"] == expected
+
+
+def test_operator_gets_no_employed_role_directions(db):
+    """A founder is not a job-seeker. Employed roles must not lead for someone
+    who told us they already run the business."""
+    from app.world.matching import rank
+    session = make_session(db)
+    session.practical_context = {"current_status": "founder"}
+    base = {"capabilityFit": 0.6, "isCurrentField": False, "isKnownTransition": False,
+            "market": {"demand": 0.5, "confidence": 0.5}, "missing": [],
+            "licensing": {"eligible": True}, "selfEmployment": 0.4,
+            "ai": {"augmentationPotential": 0.5, "automationExposure": 0.2}}
+    cands = [{**base, "occupationId": "o1", "pathway": "employment", "label": "A"},
+             {**base, "occupationId": "o2", "pathway": "business_ownership", "label": "B"}]
+    ranked = rank(cands, session)
+    assert ranked[0]["pathway"] != "employment", \
+        "an employed role must not outrank ownership for someone already operating"
+    employed = next(c for c in ranked if c["pathway"] == "employment")
+    assert employed["factors"].get("already_operating", 0) < 0
+
+
+def test_venture_market_standing_refuses_single_source_claims(db):
+    """The seeded baseline is one source. It must never become a stated fact."""
+    from app import venture
+    session = make_session(db)
+    session.practical_context = {"current_status": "founder",
+                                 "current_occupation_title": "electrician"}
+    out = venture.market_standing(db, session)
+    assert out["status"] == "insufficient_market_evidence"
+    assert all(r["usable"] is False and r["reading"] is None for r in out["readings"]), \
+        "a single-source reading must never be phrased as a claim"
+    assert out["readings"], "the underlying numbers stay visible even when unusable"
+
+
+def test_venture_surfaces_are_all_prelaunch_and_reasoned(db):
+    from app import venture
+    session = make_session(db)
+    session.practical_context = {"current_status": "founder"}
+    answers = {"shape": "solo", "solo_load": "delivery",
+               "funding": "bootstrapped", "friction": "knowledge"}
+    surfaces = venture.surfaces_for(db, session, answers, [])
+    assert surfaces
+    for s in surfaces:
+        assert s["status"] == "coming_soon" and s["url"] is None, \
+            "nothing ships as available until it actually is"
+        assert s["because"], "a surface with no stated reason must not appear"
+    assert not venture.surfaces_for(db, session, {}, []), \
+        "no answers, no product recommendations"

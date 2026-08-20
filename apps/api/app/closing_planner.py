@@ -59,8 +59,13 @@ def _detect_absence(db: Session, session: DiscoverSession) -> dict | None:
     strong = [s for _, s in tech if s.get("confidence", 0) >= th.WEAK_INTERNAL
               and s.get("estimate", 0) > 0.2]
     if len(answered) >= 2 and not strong:
-        return {"expected": "technical depth driving choices",
-                "context": "software experience is real", "found": "not consistently"}
+        # phrased as sentence fragments the closing can compose with — the
+        # composer says what IS driving first, so these read as contrast
+        context = ("you work with software" if pc.get("works_with_software")
+                   else "you build things for a living" if pc.get("builds_things")
+                   else "your background is technical")
+        return {"expected": "technical depth", "context": context,
+                "answered": len(answered), "found": "not consistently"}
     return None
 
 

@@ -87,7 +87,9 @@ def test_transformation_is_not_prescriptive(client):
         assert validate(b["text"]), f"content policy violation: {b['text']}"
     for line in final["closing"]:
         assert validate(line)
-    assert "not a verdict" in " ".join(final["closing"]).lower()
+    closing_text = " ".join(final["closing"]).lower()
+    # the disclaimer must be there; its exact wording is free to change
+    assert "not a verdict" in closing_text or "isn't a verdict" in closing_text
 
 
 def test_transformation_surfaces_uncertainty(client):
