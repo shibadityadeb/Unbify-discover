@@ -824,3 +824,18 @@ body.dx-busy-on { cursor: progress; }
   .dx-busy-pulse { animation: none; }
   body.dx-busy-on .dx-stage, body.dx-busy-on .art-stage { transition: none; }
 }
+
+/* ============ field insights: what is known, and what plainly is not ============ */
+.dx-ins-list { display: flex; flex-direction: column; gap: 12px; }
+.dx-ins { padding-left: 12px; border-left: 2px solid rgba(163, 118, 47, .38); }
+/* a missing answer must look missing at a glance, not like quieter prose */
+.dx-ins.missing { border-left-style: dashed; border-left-color: rgba(163, 118, 47, .3); opacity: .78; }
+.dx-ins-head { font-family: var(--serif); font-size: 14.5px; line-height: 1.3; color: #6d5320; }
+.dx-ins.missing .dx-ins-head { color: #9d7f4d; }
+.dx-ins-detail { font-family: var(--sans); font-size: 11.5px; line-height: 1.5; color: #8a6f42; margin-top: 3px; }
+.dx-ins-basis {
+  font-family: var(--sans); font-size: 9.5px; letter-spacing: .06em;
+  color: #ab9668; margin-top: 4px;
+}
+.dx-ins.missing .dx-ins-basis { color: #b08a3d; font-style: italic; }
+.dx-ins-opts { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; }

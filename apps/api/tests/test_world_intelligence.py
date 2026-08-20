@@ -328,3 +328,66 @@ def test_venture_surfaces_are_all_prelaunch_and_reasoned(db):
         assert s["because"], "a surface with no stated reason must not appear"
     assert not venture.surfaces_for(db, session, {}, []), \
         "no answers, no product recommendations"
+
+
+def test_insights_never_invent_salary_or_market(db):
+    """The two things we hold no data for must be returned as gaps, not guesses.
+
+    There are zero salary signals in the database and no country resolution.
+    Someone weighing up leaving a job needs to know that far more than they need
+    a confident-sounding number.
+    """
+    from app import insights
+    session = make_session(db, practical={"current_occupation_title": "electrician"})
+    out = insights.top_insights(db, session, "job")
+    assert out["status"] == "ok" and out["field"] == "Electrician"
+
+    by_head = {i["headline"]: i for i in out["insights"]}
+    pay = by_head["What it pays"]
+    assert pay["status"] == "unavailable", "salary must never be stated without data"
+    assert "no salary data" in pay["detail"].lower()
+
+    market = by_head["Which market this applies to"]
+    assert market["status"] == "unavailable", "no country on file means no market claim"
+
+    # ...while the things we DO hold are stated plainly, with their provenance
+    scope = by_head["Whether there's room to build your own"]
+    assert scope["status"] == "supported" and "55%" in scope["detail"]
+    assert "ontology" in scope["basis"]
+
+
+def test_insights_branch_reorders_but_never_changes_the_facts(db):
+    """The job/build choice decides what comes first, not what is true."""
+    from app import insights
+    session = make_session(db, practical={"current_occupation_title": "plumber"})
+    job = insights.top_insights(db, session, "job")
+    biz = insights.top_insights(db, session, "business")
+
+    assert job["insights"][0]["headline"] != biz["insights"][0]["headline"], \
+        "the branch must change the ordering"
+    shared = {i["headline"]: (i["status"], i["detail"])
+              for i in job["insights"]} 
+    for i in biz["insights"]:
+        if i["headline"] in shared:
+            assert shared[i["headline"]] == (i["status"], i["detail"]), \
+                f"{i['headline']!r} changed with the branch — facts must not move"
+
+
+def test_insights_abstain_entirely_without_a_field(db):
+    from app import insights
+    session = make_session(db, practical={})
+    out = insights.top_insights(db, session, "job")
+    assert out["status"] == "no_field" and out["insights"] == []
+
+
+def test_insights_cap_at_ten(db):
+    from app import insights
+    session = make_session(
+        db, practical={"current_occupation_title": "electrician", "commercial_evidence": True},
+        dims={"risk_tolerance": {"estimate": .5, "confidence": .8, "evidence_count": 4,
+                                 "pos_w": 1, "neg_w": 0, "variance": 0},
+              "time_availability": {"estimate": -.4, "confidence": .8, "evidence_count": 3,
+                                    "pos_w": 1, "neg_w": 0, "variance": 0}})
+    out = insights.top_insights(db, session, None)
+    assert len(out["insights"]) <= insights.MAX_INSIGHTS
+    assert len({i["headline"] for i in out["insights"]}) == len(out["insights"]), "no duplicates"

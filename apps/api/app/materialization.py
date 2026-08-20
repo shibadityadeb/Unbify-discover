@@ -399,6 +399,13 @@ def build(db: Session, session: DiscoverSession) -> dict:
         }
     else:
         payload["audience"] = "explorer"
+    # the field-level read: real numbers where we hold them, named gaps where we
+    # do not, ordered by the job-or-build branch if the person has picked one
+    from . import insights as _insights
+    payload["insights"] = _insights.top_insights(db, session, _insights.current_intent(session))
+    payload["directionQuestion"] = (None if _insights.current_intent(session)
+                                    else _insights.DIRECTION_QUESTION)
+
     snapshot = MaterializationSnapshot(session_id=session.id, version=MATERIALIZATION_VERSION,
                                        payload=payload)
     db.add(snapshot)

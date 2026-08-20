@@ -1709,6 +1709,57 @@
       scene.appendChild(s);
     }
 
+    /* WHAT WE KNOW ABOUT YOUR FIELD — real numbers and named gaps, side by side.
+       An unavailable insight is styled as clearly missing rather than quietly
+       dropped: which half of the picture is absent is itself the finding. */
+    const ins = it.insights;
+    if (ins && (ins.insights || []).length) {
+      const s2 = matSection(
+        ins.field ? `Your field · ${ins.field}` : "What we know about your field",
+        `${ins.supported} backed by data · ${ins.unavailable} we can't answer yet`);
+      const list = document.createElement("div");
+      list.className = "dx-ins-list";
+      ins.insights.forEach(x => {
+        const row = document.createElement("div");
+        row.className = "dx-ins" + (x.status === "supported" ? " ok" : " missing");
+        row.innerHTML = `
+          <p class="dx-ins-head">${esc(x.headline)}</p>
+          <p class="dx-ins-detail">${esc(x.detail)}</p>
+          <p class="dx-ins-basis">${x.status === "supported" ? "" : "Needs: "}${esc(x.basis)}</p>`;
+        list.appendChild(row);
+      });
+      s2.appendChild(list);
+      place(s2);
+    }
+    /* the branch: job or build. It reorders what matters, never what is true. */
+    if (it.directionQuestion) {
+      const q = it.directionQuestion;
+      const s3 = matSection("First, which question are you asking?");
+      const p2 = document.createElement("p");
+      p2.className = "dx-mat-note";
+      p2.textContent = q.question;
+      s3.appendChild(p2);
+      const opts = document.createElement("div");
+      opts.className = "dx-ins-opts";
+      q.options.forEach(o => {
+        const b = document.createElement("button");
+        b.className = "dx-pill";
+        b.textContent = o.label;
+        b.addEventListener("click", async () => {
+          b.classList.add("picked");
+          opts.querySelectorAll("button").forEach(x => { x.disabled = true; });
+          try {
+            await api(`/sessions/${sessionId}/insights/direction`, { optionId: o.id });
+            const fresh = await api(`/sessions/${sessionId}/materialization`, undefined, { method: "GET" });
+            handlePayload(fresh);
+          } catch (e) { b.textContent = "Didn't save — tap another"; }
+        });
+        opts.appendChild(b);
+      });
+      s3.appendChild(opts);
+      place(s3);
+    }
+
     /* OPERATOR: strengths, thin spots, and what the market evidence actually
        supports. Role directions are absent by design for this audience. */
     const v = it.venture;
