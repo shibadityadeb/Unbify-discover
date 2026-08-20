@@ -321,3 +321,16 @@ def test_idle_means_not_working_on_the_answer():
     # an in-progress drag has to hold it off between pointerdown and pointerup
     assert "onDrag" in js and "e.buttons > 0" in js, \
         "a held drag must keep the prompt away even with no other events"
+
+
+def test_only_one_retry_block_can_exist():
+    """Every failed submit appended another retry block, so a few attempts left
+    a stack of identical "That didn't go through / Try again" pairs with no way
+    to tell which button was live."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+    fn = js.split("function showRetry(")[1].split("\n  }")[0]
+    assert 'querySelectorAll(".dx-retry")' in fn and "remove()" in fn, \
+        "showRetry must clear any existing retry before adding one"
+    # and it must still preserve the answer rather than making them redo it
+    assert "respondMain(interactionId, response, chosenEl)" in fn

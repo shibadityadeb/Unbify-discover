@@ -335,6 +335,10 @@
   function showRetry(interactionId, response, chosenEl) {
     const scene = stage.firstElementChild;
     if (!scene) return;
+    /* There is only ever one retry. Each failure used to append another block,
+       so a few attempts left a column of identical "That didn't go through /
+       Try again" pairs and no way to tell which button was live. */
+    scene.querySelectorAll(".dx-retry").forEach(el => el.remove());
     const box = document.createElement("div");
     box.className = "dx-retry";
     box.innerHTML = `<p class="dx-retry-text">That didn't go through.</p>`;
