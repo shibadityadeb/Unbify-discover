@@ -1557,24 +1557,26 @@
     stage.classList.add("dx-scroll");
     scene.classList.add("dx-matpage");
 
-    /* bridge from story to product — continuity, not a dashboard drop */
-    const opener = document.createElement("div");
-    opener.className = "dx-close-sec dx-mat-opener";
-    opener.innerHTML = `
-      <p class="dx-mat-claim">You don't need another personality result.</p>
-      <p class="dx-mat-claim strong">You need to know what this is worth.</p>
-      <p class="dx-mat-sub">So here's what we've actually got.</p>`;
-    scene.appendChild(opener);
+    /* One masthead, not five stacked screens. The opener and the intro were
+       saying the same thing four different ways, each line occupying a full
+       viewport, so the actual findings began several scrolls down. */
+    const head = document.createElement("header");
+    head.className = "dx-close-sec dx-mat-masthead";
+    head.innerHTML = `
+      <p class="dx-mat-eyebrow">What this is worth</p>
+      <h2 class="dx-mat-claim">You don't need another personality result.
+        <strong>You need to know what this is worth.</strong></h2>
+      <p class="dx-mat-sub"></p>`;
+    head.querySelector(".dx-mat-sub").textContent =
+      (it.intro || []).join(" ") || "Here's what four chapters actually produced.";
+    scene.appendChild(head);
 
-    const intro = document.createElement("div");
-    intro.className = "dx-mat-intro";
-    (it.intro || []).forEach(line => {
-      const p = document.createElement("p");
-      p.className = "dx-close-sec cs-text";
-      p.textContent = line;
-      intro.appendChild(p);
-    });
-    scene.appendChild(intro);
+    /* Panels sit side by side instead of end to end: the page is a summary to
+       take in, not a document to read through. */
+    const cols = document.createElement("div");
+    cols.className = "dx-mat-columns";
+    scene.appendChild(cols);
+    const place = sec => cols.appendChild(sec);
 
     /* YOUR PICTURE */
     const pos = it.position || {};
@@ -1597,7 +1599,7 @@
         u.textContent = "Still unclear: " + pos.unclear.join(" · ");
         s.appendChild(u);
       }
-      scene.appendChild(s);
+      place(s);
     }
 
     /* CAPABILITIES */
@@ -1615,7 +1617,7 @@
         grid.appendChild(card);
       });
       s.appendChild(grid);
-      scene.appendChild(s);
+      place(s);
     }
 
     /* YOUR LEVERAGE */
@@ -1633,7 +1635,7 @@
         grid.appendChild(card);
       });
       s.appendChild(grid);
-      scene.appendChild(s);
+      place(s);
     }
 
     /* WHAT IS STILL MISSING */
@@ -1649,7 +1651,7 @@
         list.appendChild(row);
       });
       s.appendChild(list);
-      scene.appendChild(s);
+      place(s);
     }
 
     /* DIRECTIONS + their experiments */
@@ -1720,7 +1722,7 @@
           grid.appendChild(card);
         });
         s.appendChild(grid);
-        scene.appendChild(s);
+        place(s);
       }
       if ((v.thinSpots || []).length) {
         const s = matSection("Where you're exposed",
@@ -1735,7 +1737,7 @@
           list.appendChild(row);
         });
         s.appendChild(list);
-        scene.appendChild(s);
+        place(s);
       }
       const m = v.market;
       if (m) {
@@ -1759,7 +1761,7 @@
             <p class="dx-mkt-prov">${esc(prov)}${r.sources && r.sources.length ? " · " + esc(r.sources.join(", ")) : ""}</p>`;
           s.appendChild(row);
         });
-        scene.appendChild(s);
+        place(s);
       }
     }
 

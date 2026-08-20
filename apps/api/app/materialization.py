@@ -139,6 +139,16 @@ def capability_map(db: Session, session: DiscoverSession) -> list[dict]:
         title = pc.get("current_occupation_title")
         if title:
             supported_by.insert(0, f"your work as {title}")
+        # When only one fact is on file every card printed the same line — four
+        # capabilities all reading "from has led people" looks like a bug, not a
+        # reading. Rotate so each card cites a different piece of support, and
+        # fall back to the evidence itself rather than repeating.
+        if supported_by:
+            offset = len(out)
+            supported_by = supported_by[offset % len(supported_by):] + \
+                supported_by[:offset % len(supported_by)]
+            if len(supported_by) == 1 and offset:
+                supported_by = [f"{supported_by[0]}, and how you answered"]
         strength = ("strong" if weight >= 0.7 else "present" if weight >= 0.4 else "emerging")
         out.append({"key": cap_id, "label": label, "strength": strength,
                     "weight": round(weight, 2),
