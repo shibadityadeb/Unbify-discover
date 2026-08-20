@@ -173,23 +173,37 @@ def _llm_moment(db: Session, session: DiscoverSession, st: NarrativeSessionState
     return None
 
 
+# A narrative moment is worth waiting a little for, but not twice. Generation
+# runs ~6s, and the novelty regeneration doubled that — on a chapter transition,
+# where the person has already committed and is waiting to move, 13s of silence
+# costs more than the difference between a generated line and a written one.
+# The fallbacks are composed from the same event and are good; past this budget
+# we use them.
+NOVELTY_RETRY_BUDGET_S = 3.0
+
+
 def generate(db: Session, session: DiscoverSession, intent: str, facts: dict,
              desired_emotion: str, fallbacks: list[str], max_words: int = 28) -> str | None:
     """LLM first (with novelty constraints), then context-specific deterministic
     fallbacks composed from the actual event. Everything passes the same
     validation pipeline; if nothing survives, the moment is silence."""
+    import time
     st = get_state(db, session)
+    t0 = time.perf_counter()
     candidate = _llm_moment(db, session, st, intent, facts, desired_emotion, max_words)
     if candidate:
         out = accept(db, session, candidate, intent)
         if out:
             return out
         # one regeneration with explicit novelty pressure (avoid list has grown)
-        candidate = _llm_moment(db, session, st, intent, facts, desired_emotion + " — say it a completely different way", max_words)
-        if candidate:
-            out = accept(db, session, candidate, intent)
-            if out:
-                return out
+        # — but only if the first attempt was fast enough to afford a second
+        if time.perf_counter() - t0 <= NOVELTY_RETRY_BUDGET_S:
+            candidate = _llm_moment(db, session, st, intent, facts,
+                                    desired_emotion + " — say it a completely different way", max_words)
+            if candidate:
+                out = accept(db, session, candidate, intent)
+                if out:
+                    return out
     return accept_first(db, session, fallbacks, intent)
 
 
