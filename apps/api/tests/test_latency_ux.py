@@ -294,26 +294,30 @@ def test_memory_fragments_cannot_overlap():
         assert x <= 25 or x >= 75, f"slot at x={x}% sits over the question text"
 
 
-def test_idle_detection_ignores_cursor_drift():
-    """A hand resting on the mouse is not engagement.
+def test_idle_means_not_working_on_the_answer():
+    """Idle is defined by the answer controls, not by the mouse.
 
-    Raw pointermove counted as activity, so the countdown reset on every pixel
-    of tremor and the offer of help never arrived for anyone who rests a hand on
-    the mouse while thinking — which is most people. Movement now has to be
-    large enough to be a drag or a deliberate reach.
+    The countdown first watched the whole page, so drift, a stray scroll, or a
+    hand resting on the mouse kept resetting it and the offer of help never
+    arrived for someone sitting and thinking. It now resets only while the
+    person is actually working on the answer: dragging the slider, typing in the
+    field, or picking through the options.
     """
-    import re
     from pathlib import Path
     js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
 
+    assert "ANSWER_CONTROLS" in js, "activity must be scoped to the answer controls"
+    controls = js.split("const ANSWER_CONTROLS =")[1].split(";")[0]
+    for needed in (".dx-handle", ".dx-input", ".dx-opt", ".dx-chip"):
+        assert needed in controls, f"{needed} is an answer control and must count as activity"
+
     activity = js.split("const ACTIVITY = [")[1].split("]")[0]
     assert "pointermove" not in activity, \
-        "raw pointermove must not reset the idle countdown"
-    assert "pointerdown" in activity and "keydown" in activity, \
-        "real interaction must still reset it"
+        "a moving cursor is not someone answering — it must not reset the countdown"
+    assert "wheel" not in activity, "scrolling is not answering"
+    for needed in ("pointerdown", "keydown", "input"):
+        assert needed in activity, f"{needed} is real interaction and must reset it"
 
-    assert "MEANINGFUL_MOVE_PX" in js, "movement needs a threshold to count"
-    px = int(re.search(r"MEANINGFUL_MOVE_PX = (\d+)", js).group(1))
-    assert 24 <= px <= 120, f"threshold of {px}px is outside a sensible range"
-    # a drag still counts as activity, so the prompt cannot interrupt one
-    assert "onMove" in js and "Math.hypot" in js
+    # an in-progress drag has to hold it off between pointerdown and pointerup
+    assert "onDrag" in js and "e.buttons > 0" in js, \
+        "a held drag must keep the prompt away even with no other events"

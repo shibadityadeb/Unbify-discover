@@ -756,12 +756,18 @@
      or halfway through typing a sentence. Now the countdown restarts on any
      real activity, and only genuine stillness reaches the end of it. */
   const IDLE_MS = { micro_reflection: 90000, forced_rank: 75000, object_sort: 75000, default: 60000 };
-  /* Deliberately NOT plain pointermove: a person thinking with a hand resting on
-     the mouse emits it constantly, so treating every pixel of drift as activity
-     meant the countdown reset forever and the offer never arrived. Only real
-     movement counts — enough to be a drag or a deliberate reach, not a tremor. */
-  const ACTIVITY = ["pointerdown", "keydown", "input", "wheel", "touchstart", "touchmove"];
-  const MEANINGFUL_MOVE_PX = 60;
+
+  /* "Busy" means working on the answer — dragging the slider, typing in the
+     field, picking through the options. It does not mean the mouse moved.
+     Watching the whole page meant idle drift, a stray scroll or a hand resting
+     on the mouse kept resetting the countdown, so the offer of help never
+     arrived for anyone who was actually sitting there thinking. Listeners are
+     therefore scoped to the answer controls, and to events that only happen
+     when someone is using them. */
+  const ANSWER_CONTROLS =
+    ".dx-slider, .dx-track, .dx-handle, .dx-input, .dx-input-wrap, .dx-opt, " +
+    ".dx-chip, .dx-options, .dx-chips, .dx-commit, .dx-keep, .dx-pill";
+  const ACTIVITY = ["pointerdown", "pointerup", "keydown", "input", "touchstart"];
   let assistTeardown = null;
 
   function armAssist(it) {
@@ -770,15 +776,16 @@
     if (["reveal", "possible_lives", "final", "workspace"].includes(it.type)) return;
     const wait = IDLE_MS[it.type] || IDLE_MS.default;
     let lastActive = Date.now();
-    let lastX = null, lastY = null;
     const bump = () => { lastActive = Date.now(); };
-    const onMove = e => {
-      if (lastX !== null) {
-        const dx = e.clientX - lastX, dy = e.clientY - lastY;
-        if (Math.hypot(dx, dy) < MEANINGFUL_MOVE_PX) return;   // drift, not engagement
-      }
-      lastX = e.clientX; lastY = e.clientY;
-      bump();
+    /* only when the event actually lands on something you answer with */
+    const onControl = e => {
+      const t = e.target;
+      if (t && t.closest && t.closest(ANSWER_CONTROLS)) bump();
+    };
+    /* a drag in progress keeps the slider alive even between pointerdown and
+       pointerup, which can easily exceed the idle window on its own */
+    const onDrag = e => {
+      if (e.buttons > 0 || e.pressure > 0) bump();
     };
     const tick = () => {
       /* a backgrounded tab is someone who left, not someone who is stuck —
@@ -786,13 +793,13 @@
       if (document.hidden) { bump(); return; }
       if (Date.now() - lastActive >= wait) { disarmAssist(); showAssist(it); }
     };
-    ACTIVITY.forEach(e => root.addEventListener(e, bump, { passive: true, capture: true }));
-    root.addEventListener("pointermove", onMove, { passive: true, capture: true });
+    ACTIVITY.forEach(e => root.addEventListener(e, onControl, { passive: true, capture: true }));
+    root.addEventListener("pointermove", onDrag, { passive: true, capture: true });
     document.addEventListener("visibilitychange", bump);
     assistTimer = setInterval(tick, 1000);
     assistTeardown = () => {
-      ACTIVITY.forEach(e => root.removeEventListener(e, bump, { capture: true }));
-      root.removeEventListener("pointermove", onMove, { capture: true });
+      ACTIVITY.forEach(e => root.removeEventListener(e, onControl, { capture: true }));
+      root.removeEventListener("pointermove", onDrag, { capture: true });
       document.removeEventListener("visibilitychange", bump);
     };
   }
