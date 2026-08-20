@@ -139,10 +139,22 @@ def capability_map(db: Session, session: DiscoverSession) -> list[dict]:
         title = pc.get("current_occupation_title")
         if title:
             supported_by.insert(0, f"your work as {title}")
+        # Every card used to print the same first fact, so four capabilities all
+        # read "from has led people" — which looks like a rendering fault rather
+        # than a reading. Each card now cites a different piece of support, and
+        # where there is only one fact to cite it is stated once, on the card it
+        # backs most strongly, instead of repeated underneath all of them.
+        offset = len(out)
+        if len(supported_by) > 1:
+            supported_by = supported_by[offset % len(supported_by):] + \
+                supported_by[:offset % len(supported_by)]
+        elif offset:
+            supported_by = []
         strength = ("strong" if weight >= 0.7 else "present" if weight >= 0.4 else "emerging")
         out.append({"key": cap_id, "label": label, "strength": strength,
                     "weight": round(weight, 2),
-                    "supportedBy": supported_by[:3] or ["your answers across the journey"],
+                    "supportedBy": supported_by[:3] if (supported_by or offset)
+                    else ["your answers across the journey"],
                     "evidenceIds": ids})
     for c in out:
         _upsert(db, session, "capability", c["key"], c["label"],
@@ -387,6 +399,13 @@ def build(db: Session, session: DiscoverSession) -> dict:
         }
     else:
         payload["audience"] = "explorer"
+    # the field-level read: real numbers where we hold them, named gaps where we
+    # do not, ordered by the job-or-build branch if the person has picked one
+    from . import insights as _insights
+    payload["insights"] = _insights.top_insights(db, session, _insights.current_intent(session))
+    payload["directionQuestion"] = (None if _insights.current_intent(session)
+                                    else _insights.DIRECTION_QUESTION)
+
     snapshot = MaterializationSnapshot(session_id=session.id, version=MATERIALIZATION_VERSION,
                                        payload=payload)
     db.add(snapshot)

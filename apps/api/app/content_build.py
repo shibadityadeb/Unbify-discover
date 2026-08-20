@@ -13,7 +13,7 @@ match. Bump it whenever composition changes shape.
 """
 from __future__ import annotations
 
-CONTENT_BUILD = "2026-08-19.operator-branch"
+CONTENT_BUILD = "2026-08-20.chapter-iv-board.2"
 
 
 def stamped(payload: dict) -> dict:

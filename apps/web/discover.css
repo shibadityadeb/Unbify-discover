@@ -265,7 +265,7 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 }
 
 /* ============ PART TWO — the persistent workspace ============ */
-.dx-ws { width: min(980px, 100%); text-align: center; }
+.dx-ws { width: min(980px, 100%); text-align: center; padding: 4vh 0 10vh; }
 .ws-head { display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .ws-kicker {
   font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 4.4vh, 46px);
@@ -433,6 +433,7 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
   -webkit-background-clip: text; background-clip: text;
 }
 .dx-close-cta { opacity: 0; transition: opacity 1s ease; }
+.dx-matpage > .dx-close-cta { align-self: center; width: auto; min-width: 280px; }
 .dx-close-cta.in { opacity: 1; }
 
 /* The absence closing is one argument in three moves — presence, gap, restraint
@@ -536,30 +537,43 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 .dx-final-closing { display: flex; flex-direction: column; gap: 6vh; max-width: 620px; text-align: center; }
 
 /* ============ Materialization — structured, still editorial ============ */
-.dx-matpage { min-height: 100%; padding: 12vh 0 16vh; display: flex; flex-direction: column;
-  align-items: center; gap: 10vh; width: min(860px, 92vw); margin: 0 auto; }
-.dx-mat-intro { display: flex; flex-direction: column; gap: 5vh; text-align: center; max-width: 600px; }
-.dx-mat-sec { width: 100%; opacity: 0; transform: translateY(18px);
-  transition: opacity 1s ease, transform 1s cubic-bezier(.3,.6,.3,1); }
+/* A summary you take in, not a document you read through. Sections used to
+   stack end to end with 10vh between them, so the findings began several
+   scrolls below the fold and nothing could be compared side by side. */
+.dx-matpage { min-height: 100%; padding: 5vh 0 8vh; display: flex; flex-direction: column;
+  align-items: stretch; gap: 24px; width: min(1040px, 94vw); margin: 0 auto; }
+/* Multi-column rather than grid: the panels are different heights, and a grid
+   left one stranded on its own row with dead space beside it. Columns balance
+   the flow instead, so the page reads as one board. */
+.dx-mat-columns { columns: 2 400px; column-gap: 20px; width: 100%; }
+.dx-mat-sec { width: 100%; opacity: 0; transform: translateY(14px);
+  transition: opacity .7s ease, transform .7s cubic-bezier(.3,.6,.3,1); }
+/* a panel inside the grid gets its own ground so the columns read as columns */
+.dx-mat-columns > .dx-mat-sec {
+  border: 1px solid rgba(163, 118, 47, .18); border-radius: 14px;
+  padding: 18px 20px; background: rgba(255, 252, 245, .55);
+  break-inside: avoid; -webkit-column-break-inside: avoid;
+  display: inline-block; width: 100%; margin-bottom: 20px;
+}
 .dx-mat-sec.in { opacity: 1; transform: translateY(0); }
 .dx-mat-h { font-family: var(--sans); font-size: 10px; letter-spacing: .32em; text-transform: uppercase;
   color: #a3762f; margin-bottom: 10px; }
-.dx-mat-note { font-family: var(--sans); font-size: 12.5px; color: #9d7f4d; margin-bottom: 20px; }
+.dx-mat-note { font-family: var(--sans); font-size: 12px; color: #9d7f4d; margin-bottom: 14px; }
 .dx-mat-rows { display: flex; flex-direction: column; }
 .dx-mat-unclear { font-family: var(--sans); font-size: 12px; color: #a98f5e; margin-top: 14px; font-style: italic; }
-.dx-mat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
-.dx-mat-card { border: 1px solid rgba(163,118,47,.2); border-radius: 12px; padding: 16px 18px;
-  background: rgba(163,118,47,.04); }
+.dx-mat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 9px; }
+.dx-mat-card { border: 1px solid rgba(163,118,47,.18); border-radius: 10px; padding: 12px 14px;
+  background: rgba(163,118,47,.05); }
 .dx-mat-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.dx-mat-name { font-family: var(--serif); font-size: 16px; color: #6d5320; }
+.dx-mat-name { font-family: var(--serif); font-size: 15px; line-height: 1.25; color: #6d5320; }
 .dx-mat-strength { font-family: var(--sans); font-size: 8.5px; letter-spacing: .24em;
   text-transform: uppercase; color: #a3762f; }
-.dx-mat-support { font-family: var(--sans); font-size: 12px; line-height: 1.5; color: #8a6f42; margin-top: 6px; }
+.dx-mat-support { font-family: var(--sans); font-size: 11.5px; line-height: 1.45; color: #8a6f42; margin-top: 5px; }
 .dx-mat-basis { font-family: var(--sans); font-size: 10.5px; color: #a98f5e; margin-top: 6px; font-style: italic; }
-.dx-mat-gaps { display: flex; flex-direction: column; gap: 14px; }
+.dx-mat-gaps { display: flex; flex-direction: column; gap: 11px; }
 .dx-mat-gap { border-left: 2px solid rgba(163,118,47,.3); padding-left: 14px; }
-.dx-gap-label { font-family: var(--serif); font-size: 16px; color: #6d5320; }
-.dx-gap-why { font-family: var(--sans); font-size: 12.5px; color: #8a6f42; margin-top: 4px; }
+.dx-gap-label { font-family: var(--serif); font-size: 14.5px; line-height: 1.3; color: #6d5320; }
+.dx-gap-why { font-family: var(--sans); font-size: 11.5px; line-height: 1.45; color: #8a6f42; margin-top: 3px; }
 .dx-mat-directions { margin-top: 4px; }
 .dx-mat-directions .dx-life { opacity: 0; transform: translateY(16px);
   transition: opacity 1s ease, transform 1s cubic-bezier(.3,.6,.3,1); }
@@ -687,12 +701,14 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 @media (max-width: 640px) { .dx-principle-grid { grid-template-columns: 1fr; } }
 
 /* materialization opener — the material claim, stated plainly */
-.dx-mat-opener { text-align: center; max-width: 640px; }
-.dx-mat-claim { font-family: var(--serif); font-size: clamp(21px, 3.3vh, 32px);
-  line-height: 1.4; color: #8a6f42; }
-.dx-mat-claim.strong { color: #6d5320; margin-top: 10px; }
+.dx-mat-masthead { text-align: center; max-width: 760px; margin: 0 auto; }
+.dx-mat-eyebrow { font-family: var(--sans); font-size: 9.5px; letter-spacing: .34em;
+  text-transform: uppercase; color: #b08a3d; margin-bottom: 12px; }
+.dx-mat-claim { font-family: var(--serif); font-weight: 500;
+  font-size: clamp(20px, 2.9vh, 30px); line-height: 1.34; color: #9d7f4d; }
+.dx-mat-claim strong { display: block; color: #6d5320; font-weight: 500; }
 .dx-mat-sub { font-family: var(--sans); font-size: 13px; color: #a3762f;
-  letter-spacing: .06em; margin-top: 22px; }
+  letter-spacing: .05em; margin-top: 14px; }
 
 /* ============ operator branch: market readout, explore, surfaces ============ */
 .dx-mkt-abstain {
@@ -807,4 +823,79 @@ body.dx-busy-on { cursor: progress; }
   .dx-busy { backdrop-filter: none; transition: none; }
   .dx-busy-pulse { animation: none; }
   body.dx-busy-on .dx-stage, body.dx-busy-on .art-stage { transition: none; }
+}
+
+/* ============ field insights: what is known, and what plainly is not ============ */
+.dx-ins-list { display: flex; flex-direction: column; gap: 12px; }
+.dx-ins { padding-left: 12px; border-left: 2px solid rgba(163, 118, 47, .38); }
+/* a missing answer must look missing at a glance, not like quieter prose */
+.dx-ins.missing { border-left-style: dashed; border-left-color: rgba(163, 118, 47, .3); opacity: .78; }
+.dx-ins-head { font-family: var(--serif); font-size: 14.5px; line-height: 1.3; color: #6d5320; }
+.dx-ins.missing .dx-ins-head { color: #9d7f4d; }
+.dx-ins-detail { font-family: var(--sans); font-size: 11.5px; line-height: 1.5; color: #8a6f42; margin-top: 3px; }
+.dx-ins-basis {
+  font-family: var(--sans); font-size: 9.5px; letter-spacing: .06em;
+  color: #ab9668; margin-top: 4px;
+}
+.dx-ins.missing .dx-ins-basis { color: #b08a3d; font-style: italic; }
+.dx-ins-opts { display: flex; flex-direction: column; gap: 9px; margin-top: 12px; }
+
+/* ============ a week-sized plan ============ */
+.ws-plan { width: min(660px, 92vw); margin: 4px auto 0; text-align: left; }
+.ws-plan-do {
+  font-family: var(--serif); font-size: clamp(17px, 2.4vh, 21px); line-height: 1.45;
+  color: #6d5320; padding-bottom: 14px; border-bottom: 1px solid rgba(163,118,47,.2);
+}
+.ws-plan-row { display: flex; gap: 14px; padding: 9px 0; align-items: baseline; }
+.ws-plan-k {
+  flex: 0 0 128px; font-family: var(--sans); font-size: 9.5px; letter-spacing: .18em;
+  text-transform: uppercase; color: #b08a3d; line-height: 1.5;
+}
+.ws-plan-v { font-family: var(--sans); font-size: 13px; line-height: 1.55; color: #6d5320; }
+
+/* ============ the ranked long list ============ */
+.ws-possibilities { width: min(760px, 94vw); margin: 30px auto 0; text-align: left; }
+.ws-poss-head {
+  font-family: var(--sans); font-size: 10px; letter-spacing: .3em; text-transform: uppercase;
+  color: #a3762f; margin-bottom: 4px;
+}
+.ws-poss-note { font-family: var(--sans); font-size: 12px; color: #9d7f4d; margin-bottom: 14px; }
+.ws-poss {
+  display: flex; gap: 14px; align-items: flex-start;
+  padding: 12px 0; border-bottom: 1px solid rgba(163,118,47,.14);
+}
+.ws-poss-n {
+  flex: 0 0 22px; font-family: var(--sans); font-size: 11px; color: #b08a3d; padding-top: 2px;
+}
+.ws-poss-main { flex: 1 1 auto; min-width: 0; }
+.ws-poss-name { font-family: var(--serif); font-size: 16px; color: #6d5320; }
+.ws-poss-path {
+  font-family: var(--sans); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: #ab9668; margin-left: 6px;
+}
+.ws-poss-ai { font-family: var(--sans); font-size: 12px; line-height: 1.5; color: #8a6f42; margin-top: 3px; }
+.ws-poss-have { font-family: var(--sans); font-size: 11px; color: #a3762f; margin-top: 3px; }
+.ws-poss-meta { flex: 0 0 132px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.ws-poss-fit, .ws-poss-demand, .ws-poss-lic {
+  font-family: var(--sans); font-size: 9.5px; letter-spacing: .08em; text-align: right;
+}
+.ws-poss-fit { color: #6d5320; }
+.ws-poss-demand.known { color: #7a8f4a; }
+/* an unknown must not read like a quiet negative — it reads as absent */
+.ws-poss-demand.unknown { color: #b5a487; font-style: italic; }
+.ws-poss-lic { color: #b08a3d; }
+.ws-poss-honesty {
+  font-family: var(--sans); font-size: 11.5px; line-height: 1.55; color: #9d7f4d;
+  margin-top: 14px; font-style: italic;
+}
+@media (max-width: 700px) {
+  .ws-poss { flex-wrap: wrap; }
+  .ws-poss-meta { flex: 1 1 100%; flex-direction: row; justify-content: flex-start; gap: 12px; }
+  .ws-plan-row { flex-direction: column; gap: 2px; }
+  .ws-plan-k { flex: none; }
+}
+.ws-list-title {
+  font-family: var(--serif); font-size: clamp(17px, 2.3vh, 21px); color: #6d5320;
+  margin-bottom: 12px; padding-bottom: 10px;
+  border-bottom: 1px solid rgba(163, 118, 47, .2);
 }

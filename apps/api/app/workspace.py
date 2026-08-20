@@ -298,13 +298,23 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
         from .professional import get_position, current_status
         prof = get_position(session)
         status = current_status(session) or "not yet shared"
-        tops = sorted(dims.items(), key=lambda kv: -abs(kv[1].get("estimate", 0)) * kv[1].get("confidence", 0))[:2]
+        # circumstances are not preferences: time, money and location describe the
+        # situation someone is in, so reading them as "your work fits best where
+        # scraps of time matter" is nonsense dressed as insight
+        from .actions import CIRCUMSTANCE_DIMS
+        tops = sorted(((d, v) for d, v in dims.items() if d not in CIRCUMSTANCE_DIMS),
+                      key=lambda kv: -abs(kv[1].get("estimate", 0)) * kv[1].get("confidence", 0))[:2]
         friction = next((c for c in (session.contradictions or [])), None)
         unknown = sorted(((d, v.get("confidence", 0)) for d, v in dims.items() if v.get("confidence", 0) < 0.3),
                          key=lambda x: x[1])[:2]
+        # the extractor writes the string "None" when it finds no industry, and
+        # that was being printed verbatim: "employed, in AI automation (None)."
+        def _real(v):
+            return v if v and str(v).strip().lower() not in ("none", "null", "unknown") else None
+        domain, industry = _real(prof.get("domain")), _real(prof.get("industry"))
         items = [
-            f"Current position — {status}" + (f", in {prof.get('domain')}" if prof.get("domain") else "") +
-            (f" ({prof.get('industry')})" if prof.get("industry") else "") + ".",
+            f"Current position — {status}" + (f", in {domain}" if domain else "") +
+            (f" ({industry})" if industry else "") + ".",
         ]
         if tops:
             d, v = tops[0]
@@ -324,28 +334,30 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
     if action_id in LIVE_ACTIONS:
         return live_analysis(db, session, action_id)
     if action_id == "explore":
+        from . import explore as _explore
+        wide = _explore.possibilities(db, session)
         return {"kind": "map", "headline": "Your Opportunity Map",
                 "supportingText": "Three credible futures — explainable, none of them destiny.",
-                "lives": lives}
+                "lives": lives,
+                # the long list: every direction we can rank, each with its AI
+                # posture and an honest demand cell rather than a fabricated one
+                "possibilities": wide.get("items", []),
+                "rankedBy": wide.get("rankedBy"),
+                "demandCoverage": wide.get("demandCoverage"),
+                "honesty": wide.get("honesty")}
     if action_id == "next_move" and primary:
-        return {"kind": "single", "headline": "My best next move",
-                "title": primary["name"],
-                "text": primary["firstExperiment"],
-                "note": "Chosen from your top-ranked path and its first missing piece."}
+        from . import actions as _actions
+        return _actions.next_move(db, session, primary)
     if action_id == "test_direction" and primary:
-        return {"kind": "single", "headline": "Test a direction",
-                "title": f"A 7-day experiment toward {primary['name']}",
-                "text": f"Timebox it: two evenings. {primary['firstExperiment']} "
-                        f"Then write one honest paragraph — did it give energy or take it?",
+        from . import explore as _explore
+        plan = _explore.direction_test(db, session, primary)
+        return {"kind": "plan", "headline": "Test a direction",
+                "title": f"One week toward {primary['name']}",
+                "plan": plan,
                 "note": "Small enough to be safe. Real enough to produce evidence."}
     if action_id == "gaps":
-        gap_dims = sorted(((d, v.get("confidence", 0)) for d, v in dims.items() if v.get("confidence", 0) < 0.3),
-                          key=lambda x: x[1])[:3]
-        items = [f"{primary['name']}: {', '.join(primary['skillGaps'])}" if primary and primary.get("skillGaps") else None]
-        items += [f"We still know little about {dim_phrase(d, 1)} — a few Questions would sharpen this." for d, _ in gap_dims]
-        return {"kind": "list", "headline": "What am I missing?",
-                "items": [i for i in items if i],
-                "note": "Gaps are direction, not verdicts."}
+        from . import actions as _actions
+        return _actions.gaps(db, session, primary, dims)
     if action_id == "improve":
         tops = sorted(dims.items(), key=lambda kv: -abs(kv[1].get("estimate", 0)) * kv[1].get("confidence", 0))[:2]
         items = [f"Your {dim_phrase(d, v.get('estimate', 0))} is under-used where you are — name one place it could run freer."
@@ -354,36 +366,58 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
         return {"kind": "list", "headline": "Improve where I am", "items": items,
                 "note": "Position often beats motion."}
     if action_id == "expertise_income":
-        consult = next((l for l in lives if l["pathway"] == "consulting"), None)
-        return {"kind": "single", "headline": "Turn my expertise into income",
-                "title": consult["name"] if consult else "Package what people already borrow",
-                "text": (consult["whyYou"] + " " if consult else "") +
-                        "Offer one person a small, paid version of the help you already give away free.",
-                "note": "First revenue is evidence, not commitment."}
+        from . import actions as _actions
+        return _actions.expertise_income(db, session, lives)
     if action_id == "build":
-        builder = next((l for l in lives if l["pathway"] in ("builder", "entrepreneurship")), None)
-        return {"kind": "single", "headline": "Build something",
-                "title": builder["name"] if builder else "The smallest shippable thing",
-                "text": (builder["firstExperiment"] if builder else
-                         "Build the smallest version of one idea in 14 days and put it in front of ten strangers."),
-                "note": "Ship rough. Learn real."}
+        from . import actions as _actions
+        return _actions.build_something(db, session, lives)
     if action_id == "ai_leverage":
-        ai_est = dims.get("ai_leverage", {}).get("estimate", 0)
-        lead = ("You're already comfortable with the tools — the play is packaging that comfort."
-                if ai_est > 0.2 else "You don't need to become technical — you need one workflow that pays.")
-        return {"kind": "list", "headline": "AI leverage",
-                "items": [lead,
-                          "Pick the most repetitive hour of your week and automate half of it this month.",
-                          "The scarce skill isn't using AI — it's knowing which of your judgments it can't replace."],
-                "note": "Leverage compounds quietly."}
+        from . import actions as _actions
+        return _actions.ai_leverage(db, session, dims)
     if action_id == "compare" and len(lives) >= 2:
         return {"kind": "compare", "headline": "Compare paths",
                 "a": lives[0], "b": lives[1],
                 "note": "Weighed against your actual constraints, not a generic pro/con list."}
-    return {"kind": "single", "headline": "Not enough evidence yet",
-            "title": "A few Questions would unlock this",
-            "text": "Answer the highest-value questions in the Questions tab and this action sharpens.",
-            "note": ""}
+    return _not_yet(action_id, lives)
+
+
+# Each action promises something specific, so when it cannot deliver it has to
+# say what is missing in its own terms. One shared "not enough evidence yet"
+# told the person nothing about what they had opened or how to unblock it.
+NOT_YET = {
+    "compare": ("Compare paths",
+                "Comparing needs two directions to weigh against each other, and we only "
+                "have {n} so far.",
+                "Answering a few more questions widens the map — the second direction is "
+                "what makes a comparison mean anything."),
+    "explore": ("Your Opportunity Map",
+                "The map ranks directions against your evidence, and there isn't enough "
+                "of it yet to rank anything responsibly.",
+                "The Questions tab has the ones that would move this most."),
+    "test_direction": ("Test a direction",
+                       "An experiment has to test a specific direction, and none is "
+                       "settled enough yet to be worth a week of your time.",
+                       "Pick a direction on the map first, then this becomes concrete."),
+    "next_move": ("My best next move",
+                  "A next move is only useful if it points somewhere. We don't have a "
+                  "direction firm enough to aim at yet.",
+                  "A few more answers and this turns into one specific step."),
+    "build": ("Build something",
+              "We can't yet see which builder path fits you rather than any builder.",
+              "The questions about time, money and risk are the ones that decide this."),
+}
+
+
+def _not_yet(action_id: str, lives: list) -> dict:
+    title, why, unlock = NOT_YET.get(
+        action_id,
+        ("Not ready yet",
+         "This one needs more evidence than we currently hold.",
+         "The Questions tab has the ones that would unlock it."))
+    return {"kind": "single", "headline": title,
+            "title": why.format(n=len(lives)),
+            "text": unlock,
+            "note": "Nothing here is hidden — it genuinely isn't earned yet."}
 
 
 def _question_invite(db: Session, session: DiscoverSession, pending: list[dict]) -> str:
