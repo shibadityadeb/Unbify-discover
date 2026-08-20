@@ -40,7 +40,7 @@ INTERACTIONS: list[dict] = [
      ]}},
     {"id": "fr_keep_two", "type": "forced_rank", "chapters": ["SELF_DISCOVERY", "REFLECTION"],
      "targets": ["autonomy", "mastery", "impact", "stability", "income_urgency"], "cognitive_cost": 0.4,
-     "content": {"headline": "Keep only two.", "supportingText": "The rest you can live without — for now.", "maxSelect": 2, "options": [
+     "content": {"headline": "You can only keep two of these.", "supportingText": "The other four, you'd live without for the next few years.", "maxSelect": 2, "options": [
          {"id": "freedom", "label": "Freedom", "signals": [{"dim": "autonomy", "delta": .6, "weight": .55}]},
          {"id": "money", "label": "Money", "signals": [{"dim": "income_urgency", "delta": .5, "weight": .45}, {"dim": "revenue_ambition", "delta": .4, "weight": .35}]},
          {"id": "mastery", "label": "Mastery", "signals": [{"dim": "mastery", "delta": .6, "weight": .55}]},
@@ -58,12 +58,12 @@ INTERACTIONS: list[dict] = [
      ]}},
     {"id": "tt_frustrate", "type": "binary_tension", "chapters": ["SELF_DISCOVERY", "REFLECTION"],
      "targets": ["autonomy", "ambiguity_tolerance"], "cognitive_cost": 0.2,
-     "content": {"headline": "Which would frustrate you more?", "supportingText": None,
+     "content": {"headline": "Which of these would annoy you more, day to day?", "supportingText": None,
                  "left": {"label": "Someone controlling how I work", "dim": "autonomy"},
                  "right": {"label": "Not knowing where things are going", "dim": "ambiguity_tolerance", "dir": -1}}},
     {"id": "sc_messy_idea", "type": "scenario_choice", "chapters": ["SELF_DISCOVERY", "REFLECTION"],
      "targets": ["originality", "sales_comfort", "planning", "network"], "cognitive_cost": 0.3,
-     "content": {"headline": "You've been given a strong idea — and nobody owns it yet.", "supportingText": "What happens first?", "options": [
+     "content": {"headline": "A good idea lands on the table. Nobody's running with it.", "supportingText": "What do you do first?", "options": [
          {"id": "shape", "label": "I start making it real", "signals": [{"dim": "implementation_affinity", "delta": .5, "weight": .45}, {"dim": "initiative", "delta": .4, "weight": .35}]},
          {"id": "test", "label": "I first work out whether anyone needs it", "signals": [{"dim": "sales_comfort", "delta": .5, "weight": .45}, {"dim": "experimentation", "delta": .4, "weight": .35}]},
          {"id": "people", "label": "I find the right people", "signals": [{"dim": "network", "delta": .5, "weight": .45}, {"dim": "facilitation", "delta": .35, "weight": .3}]},
@@ -74,14 +74,14 @@ INTERACTIONS: list[dict] = [
      "content": {"headline": "Your work is going well. Then someone offers a much bigger role — more money, much less control.",
                  "supportingText": "What bothers you first?", "options": [
          {"id": "control", "label": "Losing the freedom to decide", "signals": [{"dim": "autonomy", "delta": .55, "weight": .5}]},
-         {"id": "machine", "label": "Becoming a small part of a big machine", "signals": [{"dim": "impact", "delta": .45, "weight": .4}, {"dim": "originality", "delta": .3, "weight": .25}]},
-         {"id": "politics", "label": "Politics crowding out the craft", "signals": [{"dim": "mastery", "delta": .5, "weight": .45}, {"dim": "facilitation", "delta": -.25, "weight": .2}]},
+         {"id": "machine", "label": "Being a small piece of something huge", "signals": [{"dim": "impact", "delta": .45, "weight": .4}, {"dim": "originality", "delta": .3, "weight": .25}]},
+         {"id": "politics", "label": "Office politics replacing the actual work", "signals": [{"dim": "mastery", "delta": .5, "weight": .45}, {"dim": "facilitation", "delta": -.25, "weight": .2}]},
          {"id": "nothing", "label": "Honestly? Nothing — I'd take it", "signals": [{"dim": "stability", "delta": .45, "weight": .4}, {"dim": "revenue_ambition", "delta": .35, "weight": .3}]},
      ]}},
     {"id": "mr_six_months", "type": "micro_reflection", "chapters": ["REFLECTION"],
      "targets": ["autonomy", "purpose"], "cognitive_cost": 0.7,
-     "content": {"headline": "Imagine your income was covered for six months.",
-                 "supportingText": "What would you genuinely change about how you work?",
+     "content": {"headline": "Your income is covered for six months, starting Monday.",
+                 "supportingText": "What would you actually change about how you work?",
                  "placeholder": "Honestly, I'd…", "help": "First thing that comes to mind. Nobody is grading this."}},
     {"id": "os_day", "type": "object_sort", "chapters": ["SELF_DISCOVERY"],
      "targets": ["mastery", "relationship_building", "originality", "sales_comfort", "leadership"], "cognitive_cost": 0.5,
@@ -100,15 +100,15 @@ INTERACTIONS: list[dict] = [
     # ---------- Chapter 2 · patterns ----------
     {"id": "sc_gift", "type": "scenario_choice", "chapters": ["REFLECTION"],
      "targets": ["implementation_affinity", "exploration", "relationship_building", "planning"], "cognitive_cost": 0.3,
-     "content": {"headline": "A free afternoon appears out of nowhere.", "supportingText": "Honestly — where does it go?", "options": [
+     "content": {"headline": "A meeting gets cancelled. You have the afternoon.", "supportingText": "Be honest — what do you actually end up doing?", "options": [
          {"id": "make", "label": "Making something", "signals": [{"dim": "implementation_affinity", "delta": .5, "weight": .45}]},
-         {"id": "learn", "label": "Falling down a rabbit hole", "signals": [{"dim": "exploration", "delta": .5, "weight": .45}]},
-         {"id": "people", "label": "Calling someone interesting", "signals": [{"dim": "relationship_building", "delta": .5, "weight": .45}]},
-         {"id": "order", "label": "Clearing the decks", "signals": [{"dim": "planning", "delta": .5, "weight": .45}]},
+         {"id": "learn", "label": "Reading about something unrelated", "signals": [{"dim": "exploration", "delta": .5, "weight": .45}]},
+         {"id": "people", "label": "Calling someone you find interesting", "signals": [{"dim": "relationship_building", "delta": .5, "weight": .45}]},
+         {"id": "order", "label": "Catching up on everything pending", "signals": [{"dim": "planning", "delta": .5, "weight": .45}]},
      ]}},
     {"id": "sc_praise", "type": "scenario_choice", "chapters": ["REFLECTION"],
      "targets": ["persistence", "originality", "persuasion", "initiative"], "cognitive_cost": 0.3,
-     "content": {"headline": "Which compliment lands deepest?", "supportingText": "Not which one you'd say — which one you'd feel.", "options": [
+     "content": {"headline": "Someone says one of these to you.", "supportingText": "Which one would you still be thinking about that evening?", "options": [
          {"id": "trusted", "label": "“I'd trust you with anything.”", "signals": [{"dim": "persistence", "delta": .45, "weight": .4}]},
          {"id": "seen", "label": "“Nobody thinks like you.”", "signals": [{"dim": "originality", "delta": .5, "weight": .45}]},
          {"id": "moved", "label": "“You changed how I see it.”", "signals": [{"dim": "persuasion", "delta": .45, "weight": .4}, {"dim": "teaching", "delta": .35, "weight": .3}]},
@@ -116,7 +116,7 @@ INTERACTIONS: list[dict] = [
      ]}},
     {"id": "mr_repeated", "type": "micro_reflection", "chapters": ["REFLECTION"],
      "targets": ["domain_expertise", "pattern_recognition"], "cognitive_cost": 0.7,
-     "content": {"headline": "One sentence.", "supportingText": "What kinds of problems do you find yourself solving repeatedly?",
+     "content": {"headline": "One sentence, off the top of your head.", "supportingText": "What kind of problem do people keep bringing to you?",
                  "placeholder": "Somehow it's always…", "help": "Think of the last month. What kept landing on you?"}},
     {"id": "mr_smaller", "type": "micro_reflection", "chapters": ["REFLECTION"],
      "targets": ["purpose", "impact"], "cognitive_cost": 0.7,
@@ -134,7 +134,7 @@ INTERACTIONS: list[dict] = [
          {"id": "founder", "label": "Founder / business owner", "signals": [{"dim": "risk_tolerance", "delta": .35, "weight": .3}, {"dim": "initiative", "delta": .3, "weight": .25}]},
          {"id": "freelance", "label": "Freelance / consulting", "signals": [{"dim": "autonomy", "delta": .35, "weight": .3}]},
          {"id": "student", "label": "Studying", "signals": []},
-         {"id": "between", "label": "Between chapters", "signals": [{"dim": "ambiguity_tolerance", "delta": .2, "weight": .15}]},
+         {"id": "between", "label": "Between jobs", "signals": [{"dim": "ambiguity_tolerance", "delta": .2, "weight": .15}]},
      ]}},
     {"id": "mr_pro_what", "type": "micro_reflection", "chapters": ["ALIGNMENT"], "practical_key": "profession_text",
      "targets": ["domain_expertise"], "cognitive_cost": 0.6, "extract": "professional",
@@ -144,14 +144,14 @@ INTERACTIONS: list[dict] = [
     {"id": "sp_years", "type": "spectrum", "chapters": ["ALIGNMENT"], "practical_key": "years_experience",
      "requires_status": ["employed", "founder", "freelance"],
      "targets": ["domain_expertise"], "cognitive_cost": 0.2,
-     "content": {"headline": "How long have you been doing work in this world?", "supportingText": None,
+     "content": {"headline": "How long have you worked in this line of work?", "supportingText": None,
                  "left": {"label": "Just starting", "dim": "domain_expertise", "dir": -1},
-                 "right": {"label": "Many years deep", "dim": "domain_expertise", "dir": 1}}},
+                 "right": {"label": "Many years in", "dim": "domain_expertise", "dir": 1}}},
     {"id": "sc_problem_money", "type": "scenario_choice", "chapters": ["ALIGNMENT"],
      "targets": ["initiative", "sales_comfort", "stability", "network"], "cognitive_cost": 0.3,
      "bridge": "This one matters more than it looks.",
-     "content": {"headline": "You notice a problem in your industry that companies repeatedly waste money on.",
-                 "supportingText": "Which reaction sounds closest?", "options": [
+     "content": {"headline": "You spot something your industry keeps wasting money on.",
+                 "supportingText": "What's your honest first reaction?", "options": [
          {"id": "solve", "label": "I'd probably start solving it myself", "signals": [{"dim": "initiative", "delta": .55, "weight": .5}, {"dim": "implementation_affinity", "delta": .4, "weight": .35}]},
          {"id": "pay", "label": "I'd want to know who would actually pay first", "signals": [{"dim": "sales_comfort", "delta": .55, "weight": .5}, {"dim": "analytical", "delta": .3, "weight": .25}]},
          {"id": "company", "label": "I'd bring it to the company I'm already in", "signals": [{"dim": "stability", "delta": .45, "weight": .4}, {"dim": "planning", "delta": .3, "weight": .25}]},
@@ -175,7 +175,7 @@ INTERACTIONS: list[dict] = [
     # ---- status-dependent branches: never ask an employee founder questions ----
     {"id": "sc_biz_stage", "type": "scenario_choice", "chapters": ["ALIGNMENT"], "practical_key": "business_stage",
      "requires_status": ["founder"], "targets": ["revenue_ambition"], "cognitive_cost": 0.25,
-     "content": {"headline": "Your thing — where is it right now?", "supportingText": None, "options": [
+     "content": {"headline": "The thing you're building — how far along is it?", "supportingText": None, "options": [
          {"id": "idea", "label": "Still an idea taking shape", "signals": [{"dim": "experimentation", "delta": .3, "weight": .25}]},
          {"id": "building", "label": "Being built", "signals": [{"dim": "implementation_affinity", "delta": .4, "weight": .35}]},
          {"id": "first_customers", "label": "First customers", "signals": [{"dim": "sales_comfort", "delta": .45, "weight": .4}]},
@@ -200,14 +200,14 @@ INTERACTIONS: list[dict] = [
     {"id": "al_hours", "type": "spectrum", "chapters": ["ALIGNMENT"], "practical_key": "hours_per_week",
      "targets": ["time_availability"], "cognitive_cost": 0.2,
      "content": {"headline": "Honestly — how much time could you give something new?", "supportingText": "Not ideally. Actually.",
-                 "left": {"label": "Stolen hours", "dim": "time_availability", "dir": -1}, "right": {"label": "Real, serious time", "dim": "time_availability", "dir": 1}}},
+                 "left": {"label": "A few odd hours", "dim": "time_availability", "dir": -1}, "right": {"label": "Real, serious time", "dim": "time_availability", "dir": 1}}},
     {"id": "al_money", "type": "spectrum", "chapters": ["ALIGNMENT"], "practical_key": "money_pressure",
      "targets": ["income_urgency"], "cognitive_cost": 0.2,
-     "content": {"headline": "And money, right now?", "supportingText": "This changes what's wise — not what's possible.",
-                 "left": {"label": "Breathing room", "dim": "income_urgency", "dir": -1}, "right": {"label": "Real pressure", "dim": "income_urgency", "dir": 1}}},
+     "content": {"headline": "And money — how tight is it right now?", "supportingText": "This changes what's sensible, not what's possible.",
+                 "left": {"label": "No rush for money", "dim": "income_urgency", "dir": -1}, "right": {"label": "Real pressure", "dim": "income_urgency", "dir": 1}}},
     {"id": "al_risk", "type": "scenario_choice", "chapters": ["ALIGNMENT"], "practical_key": "risk_appetite",
      "targets": ["risk_tolerance", "planning"], "cognitive_cost": 0.3,
-     "content": {"headline": "A door opens. Good odds, real downside.", "supportingText": "Your honest move:", "options": [
+     "content": {"headline": "A real opportunity, with a real chance of losing money.", "supportingText": "What do you actually do?", "options": [
          {"id": "walk", "label": "Walk through it", "signals": [{"dim": "risk_tolerance", "delta": .55, "weight": .5}]},
          {"id": "test", "label": "Test it from the doorway", "signals": [{"dim": "experimentation", "delta": .45, "weight": .4}]},
          {"id": "prepare", "label": "Prepare, then decide", "signals": [{"dim": "planning", "delta": .45, "weight": .4}, {"dim": "risk_tolerance", "delta": -.2, "weight": .2}]},
@@ -215,7 +215,7 @@ INTERACTIONS: list[dict] = [
      ]}},
     {"id": "al_assets", "type": "object_sort", "chapters": ["ALIGNMENT"], "practical_key": "assets",
      "targets": ["domain_expertise", "network", "audience", "capital_availability", "ai_leverage"], "cognitive_cost": 0.45,
-     "content": {"headline": "What do you already carry?", "supportingText": "Pick everything that's true.", "maxSelect": 8, "minSelect": 1, "options": [
+     "content": {"headline": "What have you already got?", "supportingText": "Tick everything that's true for you.", "maxSelect": 8, "minSelect": 1, "options": [
          {"id": "deep_field", "label": "Deep knowledge of a field", "signals": [{"dim": "domain_expertise", "delta": .6, "weight": .55}]},
          {"id": "network", "label": "People who'd take my call", "signals": [{"dim": "network", "delta": .55, "weight": .5}]},
          {"id": "audience", "label": "An audience, even small", "signals": [{"dim": "audience", "delta": .55, "weight": .5}]},
@@ -227,7 +227,7 @@ INTERACTIONS: list[dict] = [
      ]}},
     {"id": "al_geo", "type": "scenario_choice", "chapters": ["ALIGNMENT"], "practical_key": "geography",
      "targets": ["geographic_access"], "cognitive_cost": 0.2,
-     "content": {"headline": "Where does your life actually happen?", "supportingText": None, "options": [
+     "content": {"headline": "Where do you actually live and work?", "supportingText": None, "options": [
          {"id": "anchored", "label": "Anchored to one place", "signals": [{"dim": "geographic_access", "delta": -.2, "weight": .2}]},
          {"id": "hub", "label": "In or near a major hub", "signals": [{"dim": "geographic_access", "delta": .5, "weight": .45}]},
          {"id": "flexible", "label": "Genuinely flexible", "signals": [{"dim": "adaptability", "delta": .3, "weight": .25}]},
@@ -235,8 +235,8 @@ INTERACTIONS: list[dict] = [
      ]}},
     {"id": "al_solo", "type": "binary_tension", "chapters": ["ALIGNMENT"], "practical_key": "solo_or_team",
      "targets": ["facilitation"], "cognitive_cost": 0.2,
-     "content": {"headline": "Your best work tends to happen…", "supportingText": None,
-                 "left": {"label": "Alone, deep", "dim": "facilitation", "dir": -1}, "right": {"label": "With a small crew", "dim": "facilitation", "dir": 1}}},
+     "content": {"headline": "You do your best work…", "supportingText": None,
+                 "left": {"label": "On your own, uninterrupted", "dim": "facilitation", "dir": -1}, "right": {"label": "With a couple of other people", "dim": "facilitation", "dir": 1}}},
 ]
 
 MOTIFS = ["mountain", "sea", "city", "library", "workshop", "stage", "garden", "market", "studio", "night", "path", "harbor"]

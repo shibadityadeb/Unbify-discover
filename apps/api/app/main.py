@@ -36,6 +36,14 @@ async def request_context(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Request-Id"] = request.state.request_id
     response.headers["X-Content-Type-Options"] = "nosniff"
+    # API responses carry one person's in-progress answers and there is no auth
+    # yet to say whose they are. Nothing about them may be stored by a browser,
+    # a proxy, or a back/forward cache — a resumed or re-shown payload would be
+    # someone else's session on a shared machine.
+    if request.url.path.startswith("/v1/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
 
 

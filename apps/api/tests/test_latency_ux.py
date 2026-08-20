@@ -261,3 +261,63 @@ def test_narrative_retry_is_time_bounded():
     assert 0 < narrative_director.NOVELTY_RETRY_BUDGET_S <= 5
     src = __import__("inspect").getsource(narrative_director.generate)
     assert "NOVELTY_RETRY_BUDGET_S" in src, "the retry must consult the budget"
+
+
+def test_memory_fragments_cannot_overlap():
+    """Fragments used to be positioned by a raw hash of their own text.
+
+    Nothing stopped two of them landing on the same spot, and when they did they
+    rendered as overlapping glyphs in the corner — unreadable, and it looked
+    like a rendering fault rather than atmosphere. Measured at ~19% of
+    six-fragment layouts. They now go into fixed, separated slots.
+    """
+    import re
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+
+    assert "FRAG_SLOTS" in js, "fragments must be placed into fixed slots"
+    assert "8 + (h % 80)" not in js, "the colliding raw-hash placement must not come back"
+
+    block = js.split("const FRAG_SLOTS = [")[1].split("];")[0]
+    slots = [(int(a), int(b)) for a, b in re.findall(r"\[(\d+),\s*(\d+)\]", block)]
+    assert len(slots) >= 8, "too few slots to hold a typical field"
+    assert len(set(slots)) == len(slots), "duplicate slot positions defeat the fix"
+
+    # every pair must be far enough apart that short italic text cannot collide
+    for i, a in enumerate(slots):
+        for b in slots[i + 1:]:
+            assert abs(a[0] - b[0]) >= 8 or abs(a[1] - b[1]) >= 8, \
+                f"slots {a} and {b} are close enough to overlap"
+
+    # and the centre column stays clear for the question itself
+    for x, _ in slots:
+        assert x <= 25 or x >= 75, f"slot at x={x}% sits over the question text"
+
+
+def test_idle_means_not_working_on_the_answer():
+    """Idle is defined by the answer controls, not by the mouse.
+
+    The countdown first watched the whole page, so drift, a stray scroll, or a
+    hand resting on the mouse kept resetting it and the offer of help never
+    arrived for someone sitting and thinking. It now resets only while the
+    person is actually working on the answer: dragging the slider, typing in the
+    field, or picking through the options.
+    """
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+
+    assert "ANSWER_CONTROLS" in js, "activity must be scoped to the answer controls"
+    controls = js.split("const ANSWER_CONTROLS =")[1].split(";")[0]
+    for needed in (".dx-handle", ".dx-input", ".dx-opt", ".dx-chip"):
+        assert needed in controls, f"{needed} is an answer control and must count as activity"
+
+    activity = js.split("const ACTIVITY = [")[1].split("]")[0]
+    assert "pointermove" not in activity, \
+        "a moving cursor is not someone answering — it must not reset the countdown"
+    assert "wheel" not in activity, "scrolling is not answering"
+    for needed in ("pointerdown", "keydown", "input"):
+        assert needed in activity, f"{needed} is real interaction and must reset it"
+
+    # an in-progress drag has to hold it off between pointerdown and pointerup
+    assert "onDrag" in js and "e.buttons > 0" in js, \
+        "a held drag must keep the prompt away even with no other events"
