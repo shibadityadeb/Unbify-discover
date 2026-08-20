@@ -81,7 +81,7 @@ def _license_gate(db: Session, session: DiscoverSession, occ: WIOccupation,
 
 
 def generate_candidates(db: Session, session: DiscoverSession,
-                        geography: str = "*") -> dict:
+                        geography: str = "*", min_fit: float = 0.18) -> dict:
     """Candidate generation across pathway types. Returns
     {status, candidates, coverage} — status may be insufficient_world_evidence."""
     user_vec = ontology.user_capability_vector(db, session)
@@ -97,7 +97,10 @@ def generate_candidates(db: Session, session: DiscoverSession,
     for occ in occs:
         occ_caps = ontology.occupation_capabilities(db, occ.id)
         fit, transfers, missing = _capability_fit(user_vec, occ_caps)
-        if fit < 0.18 and occ.id not in current_ids:
+        # ranking keeps the default floor; an exploration view can ask for a
+        # wider net, because seeing an adjacent field at a stated low fit is
+        # useful, whereas ranking one as a recommendation would not be
+        if fit < min_fit and occ.id not in current_ids:
             continue
         transitions_in = [t for t in db.query(WIOccupationTransition).all()
                           if t.to_occupation_id == occ.id and t.from_occupation_id in current_ids]

@@ -126,3 +126,87 @@ def test_no_third_party_perception_questions(client):
     text = str(INTERACTIONS).lower()
     for phrase in ["people come to you", "friends say", "would your manager", "coworkers say"]:
         assert phrase not in text
+
+
+def test_every_workspace_action_names_its_own_blocker():
+    """A capsule that cannot deliver must say what IS missing, in its own terms.
+
+    One shared "not enough evidence yet" told the person nothing about what they
+    had just opened or how to unblock it — the same sentence whether they asked
+    to compare paths or to test a direction.
+    """
+    from app import workspace
+
+    for action_id in ("compare", "explore", "test_direction", "next_move", "build"):
+        out = workspace._not_yet(action_id, lives=[{"key": "one"}])
+        assert out["headline"] != "Not ready yet", f"{action_id} fell back to the generic message"
+        assert out["title"], f"{action_id} did not say what is missing"
+        assert out["text"], f"{action_id} did not say how to unblock it"
+        # the headline must name the thing the person actually clicked
+        assert len(out["headline"]) > 3
+
+    # the count is real, not a placeholder
+    compare = workspace._not_yet("compare", lives=[{"key": "only-one"}])
+    assert "1" in compare["title"], "the blocker should state how many directions exist"
+
+    # anything unnamed still explains itself rather than going silent
+    unknown = workspace._not_yet("no_such_action", lives=[])
+    assert unknown["headline"] and unknown["title"] and unknown["text"]
+
+
+def _rich_session(db):
+    from app.models import AnonymousIdentity, DiscoverSession
+    anon = AnonymousIdentity()
+    db.add(anon)
+    db.flush()
+    d = lambda e, c, n: {"estimate": e, "confidence": c, "evidence_count": n,
+                         "pos_w": 1, "neg_w": 0, "variance": 0}
+    session = DiscoverSession(
+        anon_id=anon.id, journey_status="DISCOVER_WORKSPACE", counters={},
+        dimensions={"ai_leverage": d(.4, .6, 3), "time_availability": d(-.5, .7, 3),
+                    "mastery": d(.6, .7, 4), "capital_availability": d(-.3, .6, 2)},
+        practical_context={"current_occupation_title": "electrician",
+                           "hands_on_technical": True, "builds_things": True,
+                           "commercial_evidence": True})
+    db.add(session)
+    db.flush()
+    return session
+
+
+def test_actions_answer_with_this_persons_evidence_not_advice(client):
+    """Capsules used to return lines equally true for anybody. Each must now cite
+    something specific to the person or their field."""
+    from app import workspace
+    from app.db import SessionLocal
+
+    db = SessionLocal()
+    try:
+        session = _rich_session(db)
+
+        ai = workspace.action_content(db, session, "ai_leverage")
+        body = " ".join(ai["items"])
+        assert "Electrician" in body, "AI leverage must name the actual field"
+        assert "0.15" in body and "0.45" in body, "it must cite the real exposure figures"
+
+        income = workspace.action_content(db, session, "expertise_income")
+        assert "55%" in " ".join(income["items"]), "must use the field's own independence rate"
+
+        gaps = workspace.action_content(db, session, "gaps")
+        lines = gaps["items"]
+        assert len(set(lines)) == len(lines), "gaps must not repeat one sentence"
+        for line in lines:
+            assert "a few Questions would sharpen this" not in line
+
+        # a constraint is not a preference
+        position = workspace.action_content(db, session, "position")
+        align = next((i for i in position["items"] if i.startswith("Alignment")), "")
+        assert "scraps of time" not in align, "circumstances must not be read as alignment"
+
+        # and the next step has to be an actual step
+        nxt = workspace.action_content(db, session, "next_move")
+        assert "two honest hours this week" not in " ".join(nxt["items"]), \
+            "the generic placeholder step must not survive"
+        assert nxt["title"] and len(nxt["title"]) <= 60, "a title is a name, not a paragraph"
+    finally:
+        db.rollback()
+        db.close()

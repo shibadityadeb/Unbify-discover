@@ -904,6 +904,10 @@
   }
 
   function renderWorkspace(scene, ws) {
+    /* The workspace is a list that routinely runs past the fold, and it was the
+       one renderer that never enabled scrolling — the materialization CTA even
+       removes dx-scroll on its way here, so it arrived pinned. */
+    stage.classList.add("dx-scroll");
     scene.classList.add("dx-ws");
     scene.innerHTML = `
       <div class="ws-head">
@@ -1027,9 +1031,70 @@
         row.appendChild(card);
       });
       wrap.appendChild(row);
+      if ((d.possibilities || []).length) {
+        const more = document.createElement("div");
+        more.className = "ws-possibilities";
+        more.innerHTML = `<p class="ws-poss-head">Everything else we can rank</p>
+          <p class="ws-poss-note">${esc(d.rankedBy || "")}</p>`;
+        d.possibilities.forEach((x, i) => {
+          const r = document.createElement("div");
+          r.className = "ws-poss";
+          const demandKnown = x.demand && x.demand.status === "known";
+          r.innerHTML = `
+            <span class="ws-poss-n">${i + 1}</span>
+            <div class="ws-poss-main">
+              <p class="ws-poss-name">${esc(x.label)} <span class="ws-poss-path">${esc(x.pathway || "")}</span></p>
+              <p class="ws-poss-ai">${esc(x.ai ? x.ai.reading : "")}</p>
+              ${(x.youAlreadyHave || []).length
+                ? `<p class="ws-poss-have">You already have: ${esc(x.youAlreadyHave.join(", "))}</p>` : ""}
+            </div>
+            <div class="ws-poss-meta">
+              <span class="ws-poss-fit">${esc(x.fitLabel || "")}</span>
+              <span class="ws-poss-demand ${demandKnown ? "known" : "unknown"}">${
+                esc(demandKnown ? x.demand.label : "demand unknown")}</span>
+              ${x.licensed ? `<span class="ws-poss-lic">licence needed</span>` : ""}
+            </div>`;
+          more.appendChild(r);
+        });
+        if (d.honesty) {
+          const h = document.createElement("p");
+          h.className = "ws-poss-honesty";
+          h.textContent = d.honesty;
+          more.appendChild(h);
+        }
+        wrap.appendChild(more);
+      }
+    } else if (d.kind === "plan") {
+      /* a week you could actually approve: what you do, what it settles, what
+         kills it, and what tools change about doing it now */
+      const pl = d.plan || {};
+      const box = document.createElement("div");
+      box.className = "ws-plan";
+      const line = (k, v) => v ? `<div class="ws-plan-row"><span class="ws-plan-k">${esc(k)}</span>
+          <span class="ws-plan-v">${esc(v)}</span></div>` : "";
+      box.innerHTML =
+        `<p class="ws-plan-do">${esc(pl.whatYouDo || "")}</p>` +
+        line("What it settles", pl.proves) +
+        line("What would kill it", pl.rulesOut) +
+        line("What AI changes", pl.aiAngle) +
+        line("Done looks like", pl.successLooks) +
+        line("If it works", pl.ifItWorks) +
+        line("If it doesn't", pl.ifItDoesnt) +
+        line("What it costs", pl.cost) +
+        ((pl.missing || []).length
+          ? line("Still missing", pl.missing.join(", ")) : "");
+      wrap.appendChild(box);
     } else if (d.kind === "list") {
       const ul = document.createElement("div");
       ul.className = "ws-list";
+      /* several list actions now carry a subject; without it the reader sees a
+         set of statements with nothing saying what they are about */
+      if (d.title) {
+        const t = document.createElement("p");
+        t.className = "ws-list-title";
+        t.textContent = d.title;
+        ul.appendChild(t);
+      }
       (d.items || []).forEach(item => {
         const p = document.createElement("p");
         p.className = "ws-item";
@@ -1557,24 +1622,26 @@
     stage.classList.add("dx-scroll");
     scene.classList.add("dx-matpage");
 
-    /* bridge from story to product — continuity, not a dashboard drop */
-    const opener = document.createElement("div");
-    opener.className = "dx-close-sec dx-mat-opener";
-    opener.innerHTML = `
-      <p class="dx-mat-claim">You don't need another personality result.</p>
-      <p class="dx-mat-claim strong">You need to know what this is worth.</p>
-      <p class="dx-mat-sub">So here's what we've actually got.</p>`;
-    scene.appendChild(opener);
+    /* One masthead, not five stacked screens. The opener and the intro were
+       saying the same thing four different ways, each line occupying a full
+       viewport, so the actual findings began several scrolls down. */
+    const head = document.createElement("header");
+    head.className = "dx-close-sec dx-mat-masthead";
+    head.innerHTML = `
+      <p class="dx-mat-eyebrow">What this is worth</p>
+      <h2 class="dx-mat-claim">You don't need another personality result.
+        <strong>You need to know what this is worth.</strong></h2>
+      <p class="dx-mat-sub"></p>`;
+    head.querySelector(".dx-mat-sub").textContent =
+      (it.intro || []).join(" ") || "Here's what four chapters actually produced.";
+    scene.appendChild(head);
 
-    const intro = document.createElement("div");
-    intro.className = "dx-mat-intro";
-    (it.intro || []).forEach(line => {
-      const p = document.createElement("p");
-      p.className = "dx-close-sec cs-text";
-      p.textContent = line;
-      intro.appendChild(p);
-    });
-    scene.appendChild(intro);
+    /* Panels sit side by side instead of end to end: the page is a summary to
+       take in, not a document to read through. */
+    const cols = document.createElement("div");
+    cols.className = "dx-mat-columns";
+    scene.appendChild(cols);
+    const place = sec => cols.appendChild(sec);
 
     /* YOUR PICTURE */
     const pos = it.position || {};
@@ -1597,7 +1664,7 @@
         u.textContent = "Still unclear: " + pos.unclear.join(" · ");
         s.appendChild(u);
       }
-      scene.appendChild(s);
+      place(s);
     }
 
     /* CAPABILITIES */
@@ -1611,11 +1678,12 @@
         card.innerHTML = `
           <div class="dx-mat-top"><span class="dx-mat-name">${esc(c.label)}</span>
             <span class="dx-mat-strength">${esc(c.strength)}</span></div>
-          <p class="dx-mat-support">from ${esc((c.supportedBy || []).join(", "))}</p>`;
+          ${(c.supportedBy || []).length
+              ? `<p class="dx-mat-support">from ${esc(c.supportedBy.join(", "))}</p>` : ""}`;
         grid.appendChild(card);
       });
       s.appendChild(grid);
-      scene.appendChild(s);
+      place(s);
     }
 
     /* YOUR LEVERAGE */
@@ -1633,7 +1701,7 @@
         grid.appendChild(card);
       });
       s.appendChild(grid);
-      scene.appendChild(s);
+      place(s);
     }
 
     /* WHAT IS STILL MISSING */
@@ -1649,7 +1717,7 @@
         list.appendChild(row);
       });
       s.appendChild(list);
-      scene.appendChild(s);
+      place(s);
     }
 
     /* DIRECTIONS + their experiments */
@@ -1702,6 +1770,57 @@
       scene.appendChild(s);
     }
 
+    /* WHAT WE KNOW ABOUT YOUR FIELD — real numbers and named gaps, side by side.
+       An unavailable insight is styled as clearly missing rather than quietly
+       dropped: which half of the picture is absent is itself the finding. */
+    const ins = it.insights;
+    if (ins && (ins.insights || []).length) {
+      const s2 = matSection(
+        ins.field ? `Your field · ${ins.field}` : "What we know about your field",
+        `${ins.supported} backed by data · ${ins.unavailable} we can't answer yet`);
+      const list = document.createElement("div");
+      list.className = "dx-ins-list";
+      ins.insights.forEach(x => {
+        const row = document.createElement("div");
+        row.className = "dx-ins" + (x.status === "supported" ? " ok" : " missing");
+        row.innerHTML = `
+          <p class="dx-ins-head">${esc(x.headline)}</p>
+          <p class="dx-ins-detail">${esc(x.detail)}</p>
+          <p class="dx-ins-basis">${x.status === "supported" ? "" : "Needs: "}${esc(x.basis)}</p>`;
+        list.appendChild(row);
+      });
+      s2.appendChild(list);
+      place(s2);
+    }
+    /* the branch: job or build. It reorders what matters, never what is true. */
+    if (it.directionQuestion) {
+      const q = it.directionQuestion;
+      const s3 = matSection("First, which question are you asking?");
+      const p2 = document.createElement("p");
+      p2.className = "dx-mat-note";
+      p2.textContent = q.question;
+      s3.appendChild(p2);
+      const opts = document.createElement("div");
+      opts.className = "dx-ins-opts";
+      q.options.forEach(o => {
+        const b = document.createElement("button");
+        b.className = "dx-pill";
+        b.textContent = o.label;
+        b.addEventListener("click", async () => {
+          b.classList.add("picked");
+          opts.querySelectorAll("button").forEach(x => { x.disabled = true; });
+          try {
+            await api(`/sessions/${sessionId}/insights/direction`, { optionId: o.id });
+            const fresh = await api(`/sessions/${sessionId}/materialization`, undefined, { method: "GET" });
+            handlePayload(fresh);
+          } catch (e) { b.textContent = "Didn't save — tap another"; }
+        });
+        opts.appendChild(b);
+      });
+      s3.appendChild(opts);
+      place(s3);
+    }
+
     /* OPERATOR: strengths, thin spots, and what the market evidence actually
        supports. Role directions are absent by design for this audience. */
     const v = it.venture;
@@ -1720,7 +1839,7 @@
           grid.appendChild(card);
         });
         s.appendChild(grid);
-        scene.appendChild(s);
+        place(s);
       }
       if ((v.thinSpots || []).length) {
         const s = matSection("Where you're exposed",
@@ -1735,7 +1854,7 @@
           list.appendChild(row);
         });
         s.appendChild(list);
-        scene.appendChild(s);
+        place(s);
       }
       const m = v.market;
       if (m) {
@@ -1759,7 +1878,7 @@
             <p class="dx-mkt-prov">${esc(prov)}${r.sources && r.sources.length ? " · " + esc(r.sources.join(", ")) : ""}</p>`;
           s.appendChild(row);
         });
-        scene.appendChild(s);
+        place(s);
       }
     }
 

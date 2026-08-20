@@ -566,6 +566,40 @@ def get_materialization(session_id: str, db: Session = Depends(get_db)):
     return {"sessionId": session.id, **payload}
 
 
+class DirectionChoice(BaseModel):
+    optionId: str = Field(max_length=20)
+
+
+@router.get("/discover/sessions/{session_id}/insights")
+def get_insights(session_id: str, db: Session = Depends(get_db)):
+    """The ten things worth knowing about this person's field, ordered by the
+    branch they picked. Insights we have no data for are returned as explicitly
+    unavailable rather than omitted — someone deciding whether to leave a job
+    needs to know which half of the picture is missing."""
+    session = _get_session(db, session_id)
+    from .. import insights
+    out = insights.top_insights(db, session, insights.current_intent(session))
+    out["question"] = insights.DIRECTION_QUESTION if not insights.current_intent(session) else None
+    db.commit()
+    return out
+
+
+@router.post("/discover/sessions/{session_id}/insights/direction")
+def set_direction(session_id: str, body: DirectionChoice, db: Session = Depends(get_db)):
+    session = _get_session(db, session_id)
+    from .. import insights
+    if not insights.save_direction(db, session, body.optionId):
+        raise HTTPException(400, "unknown direction")
+    # the ordering changed, so any cached page is stale
+    pc = dict(session.practical_context or {})
+    pc.pop("_materialization", None)
+    session.practical_context = pc
+    emit(db, session_id, "insights.direction", {"intent": body.optionId})
+    out = insights.top_insights(db, session, insights.current_intent(session))
+    db.commit()
+    return out
+
+
 class ProbeAnswer(BaseModel):
     stepId: str = Field(max_length=40)
     optionId: str = Field(max_length=40)

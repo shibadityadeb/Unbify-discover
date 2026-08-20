@@ -328,3 +328,120 @@ def test_venture_surfaces_are_all_prelaunch_and_reasoned(db):
         assert s["because"], "a surface with no stated reason must not appear"
     assert not venture.surfaces_for(db, session, {}, []), \
         "no answers, no product recommendations"
+
+
+def test_insights_never_invent_salary_or_market(db):
+    """The two things we hold no data for must be returned as gaps, not guesses.
+
+    There are zero salary signals in the database and no country resolution.
+    Someone weighing up leaving a job needs to know that far more than they need
+    a confident-sounding number.
+    """
+    from app import insights
+    session = make_session(db, practical={"current_occupation_title": "electrician"})
+    out = insights.top_insights(db, session, "job")
+    assert out["status"] == "ok" and out["field"] == "Electrician"
+
+    by_head = {i["headline"]: i for i in out["insights"]}
+    pay = by_head["What it pays"]
+    assert pay["status"] == "unavailable", "salary must never be stated without data"
+    assert "no salary data" in pay["detail"].lower()
+
+    market = by_head["Which market this applies to"]
+    assert market["status"] == "unavailable", "no country on file means no market claim"
+
+    # ...while the things we DO hold are stated plainly, with their provenance
+    scope = by_head["Whether there's room to build your own"]
+    assert scope["status"] == "supported" and "55%" in scope["detail"]
+    assert "ontology" in scope["basis"]
+
+
+def test_insights_branch_reorders_but_never_changes_the_facts(db):
+    """The job/build choice decides what comes first, not what is true."""
+    from app import insights
+    session = make_session(db, practical={"current_occupation_title": "plumber"})
+    job = insights.top_insights(db, session, "job")
+    biz = insights.top_insights(db, session, "business")
+
+    assert job["insights"][0]["headline"] != biz["insights"][0]["headline"], \
+        "the branch must change the ordering"
+    shared = {i["headline"]: (i["status"], i["detail"])
+              for i in job["insights"]} 
+    for i in biz["insights"]:
+        if i["headline"] in shared:
+            assert shared[i["headline"]] == (i["status"], i["detail"]), \
+                f"{i['headline']!r} changed with the branch — facts must not move"
+
+
+def test_insights_abstain_entirely_without_a_field(db):
+    from app import insights
+    session = make_session(db, practical={})
+    out = insights.top_insights(db, session, "job")
+    assert out["status"] == "no_field" and out["insights"] == []
+
+
+def test_insights_cap_at_ten(db):
+    from app import insights
+    session = make_session(
+        db, practical={"current_occupation_title": "electrician", "commercial_evidence": True},
+        dims={"risk_tolerance": {"estimate": .5, "confidence": .8, "evidence_count": 4,
+                                 "pos_w": 1, "neg_w": 0, "variance": 0},
+              "time_availability": {"estimate": -.4, "confidence": .8, "evidence_count": 3,
+                                    "pos_w": 1, "neg_w": 0, "variance": 0}})
+    out = insights.top_insights(db, session, None)
+    assert len(out["insights"]) <= insights.MAX_INSIGHTS
+    assert len({i["headline"] for i in out["insights"]}) == len(out["insights"]), "no duplicates"
+
+
+def test_explore_ranks_on_fit_and_ai_never_on_invented_demand(db):
+    """"Top rising careers" is a claim about demand over time, and every demand
+    signal we hold is a single seeded source below the display bar. The list is
+    ranked on what is knowable and says so."""
+    from app import explore
+    session = make_session(db, practical={"current_occupation_title": "electrician",
+                                          "hands_on_technical": True, "builds_things": True})
+    out = explore.possibilities(db, session)
+    assert out["status"] == "ok" and out["items"], "a resolvable trade must produce directions"
+    assert len(out["items"]) <= explore.TOP_N
+
+    ids = [i["occupationId"] for i in out["items"]]
+    assert len(ids) == len(set(ids)), "one row per occupation"
+
+    for item in out["items"]:
+        assert item["ai"]["posture"] in ("exposed", "amplified", "insulated", "mixed")
+        assert item["ai"]["reading"], "every row needs its AI-era read"
+        assert item["fitLabel"], "a weak match must be labelled, never left to look strong"
+        # demand may only be stated when it is genuinely backed
+        if item["demand"]["status"] == "known":
+            assert "value" in item["demand"]
+        else:
+            assert "label" in item["demand"] and "note" in item["demand"]
+
+    known = out["demandCoverage"]["known"]
+    assert known == 0, "with only seeded signals nothing may be called growing"
+    assert "not on which fields are rising" in out["honesty"]
+
+
+def test_direction_test_is_a_full_plan_without_the_llm(db):
+    """The plan must stand up with the model unavailable, and a half-filled
+    generation must be discarded rather than shown."""
+    from app import explore
+    from app.llm import gateway
+    session = make_session(db, practical={"current_occupation_title": "electrician"})
+
+    original = gateway.generate
+    gateway.generate = lambda *a, **k: None
+    try:
+        plan = explore.direction_test(db, session, {"name": "Owning the business",
+                                                    "firstExperiment": "Quote one real job."})
+        assert plan["source"] == "built"
+        for field in ("whatYouDo", "proves", "rulesOut", "aiAngle",
+                      "successLooks", "ifItWorks", "ifItDoesnt", "cost"):
+            assert plan[field], f"{field} missing from the offline plan"
+
+        # a partial generation is worse than the written one — it must be rejected
+        gateway.generate = lambda *a, **k: {"whatYouDo": "Do the thing", "proves": ""}
+        partial = explore.direction_test(db, session, {"name": "X", "firstExperiment": "Y"})
+        assert partial["source"] == "built", "a half-filled plan must fall back"
+    finally:
+        gateway.generate = original
