@@ -68,7 +68,7 @@ def _routes_for(db: Session, session: DiscoverSession, material: dict) -> list[d
         add("agency",
             need=f"the direction that fits you ({independent[0]['label']}) depends on finding "
                  "and winning customers",
-            gap="distribution and client acquisition",
+            gap="finding and winning customers",
             reasons=["independent_direction", "commercial_gap", "distribution_needed"],
             prerequisites=["MATERIALIZATION"],
             relevance=0.6 if not pc.get("commercial_evidence") else 0.5,
@@ -79,8 +79,8 @@ def _routes_for(db: Session, session: DiscoverSession, material: dict) -> list[d
         pc.get("coordinates_delivery") or (pc.get("current_status") == "founder")
     if operating:
         add("suite",
-            need="you are already running real work, not just planning it",
-            gap="the operating layer — workflows, delivery and execution as volume grows",
+            need="you're already doing the work, not just planning it",
+            gap="the day-to-day running of it as the volume goes up",
             reasons=["already_operating", "execution_load"],
             prerequisites=["MATERIALIZATION"],
             relevance=0.55,
@@ -92,14 +92,14 @@ def _routes_for(db: Session, session: DiscoverSession, material: dict) -> list[d
     if unwanted:
         add("marketplace",
             need=f"{unwanted[0]['label']} stands between you and a direction you want",
-            gap="a capability you would rather buy than become",
+            gap="a skill you'd rather pay for than spend years learning",
             reasons=["capability_gap", "prefer_buy"],
             prerequisites=["MATERIALIZATION"],
             relevance=0.5, evidence_kinds=("behavioral_choice",))
     elif sellable and independent:
         add("marketplace",
             need=f"you already have something sellable — {sellable[0]['label']}",
-            gap="somewhere to offer it that isn't cold outreach",
+            gap="somewhere to sell it that isn't cold emails",
             reasons=["sellable_capability", "independent_direction"],
             prerequisites=["MATERIALIZATION"],
             relevance=0.5, evidence_kinds=("explicit_fact", "behavioral_choice"))
@@ -109,8 +109,8 @@ def _routes_for(db: Session, session: DiscoverSession, material: dict) -> list[d
     comparing = len(directions) >= 3
     if open_questions >= 2 and comparing:
         add("brain",
-            need="several directions are live and the deciding evidence isn't in yet",
-            gap="ongoing decision support as your evidence changes",
+            need="several options are still open and you don't have what you need to choose yet",
+            gap="help deciding, that keeps up as things change",
             reasons=["multiple_live_directions", "unresolved_uncertainty"],
             prerequisites=["MATERIALIZATION"],
             relevance=0.45 + 0.05 * min(3, open_questions),
@@ -120,17 +120,17 @@ def _routes_for(db: Session, session: DiscoverSession, material: dict) -> list[d
 
 
 PRESENTATION = {
-    "career": ("Build and prove the capability",
-               "UNBIFY Career exists for exactly this gap — structured capability building with "
-               "evidence you can show."),
+    "career": ("Learn it, and be able to prove it",
+               "UNBIFY Career is built for exactly this gap: you learn the skill and end up with "
+               "something you can show people."),
     "agency": ("Get it in front of customers",
-               "UNBIFY Agency handles the distribution and client side that this direction lives or dies on."),
+               "UNBIFY Agency handles the finding-customers side, which is what this stands or falls on."),
     "suite": ("Run it without it running you",
-              "UNBIFY Suite is the operating layer for work that already exists."),
+              "UNBIFY Suite runs the day-to-day of work you're already doing."),
     "marketplace": ("Buy the piece you're missing",
-                    "UNBIFY Marketplace is where that capability can be bought or offered."),
-    "brain": ("Keep the analysis alive",
-              "UNBIFY Brain keeps this decision updating as your evidence and the market change."),
+                    "UNBIFY Marketplace is where you can buy that in, or sell it."),
+    "brain": ("Keep this up to date",
+              "UNBIFY Brain keeps this up to date as your situation and the market change."),
 }
 
 
@@ -163,7 +163,7 @@ def route(db: Session, session: DiscoverSession, material: dict) -> list[dict]:
             "gap": f"What's missing is {r['gap']}.",
             "help": help_text,
             "reasonCodes": r["reasonCodes"],
-            "optional": "You can keep exploring, saving and testing without this.",
+            "optional": "You can keep looking around, saving and testing without it.",
         })
     return out
 

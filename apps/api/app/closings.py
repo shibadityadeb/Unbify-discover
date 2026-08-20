@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from . import closing_planner, knowledge, quotes
+from . import closing_planner, content_build, knowledge, quotes
 from . import narrative_director as director
 from . import resonance, surprise
 from . import thresholds as th
@@ -20,7 +20,7 @@ from .signals import thinnest_dims, top_dims
 
 CLOSING_CTA = {
     "SELF_DISCOVERY_CLOSING": "See the pattern →",
-    "REFLECTION_CLOSING": "Put this into the real world →",
+    "REFLECTION_CLOSING": "Now the practical part →",
     "ALIGNMENT_CLOSING": "Bring it together →",
     "TRANSFORMATION_CLOSING": "See what this can become →",
 }
@@ -29,10 +29,10 @@ CLOSING_CTA = {
 # §5/§30/§31 — a quote appears only because a supported pattern pulled it, at
 # most one moment per chapter, and always after the user's own evidence.
 QUOTE_INTROS = {
-    "SELF_DISCOVERY_CLOSING": "A principle others have worked by",
-    "REFLECTION_CLOSING": "People who built around a similar principle",
-    "ALIGNMENT_CLOSING": "One idea that rhymes with this",
-    "TRANSFORMATION_CLOSING": "Different people. Similar engine.",
+    "SELF_DISCOVERY_CLOSING": "Someone else who worked this way",
+    "REFLECTION_CLOSING": "Two people who built on the same thing",
+    "ALIGNMENT_CLOSING": "Someone who reached the same conclusion",
+    "TRANSFORMATION_CLOSING": "Different people. Same way of working.",
 }
 
 
@@ -142,7 +142,7 @@ def _fragment_reassembly(db, session, st, plan) -> list[dict]:
         note = director.generate(
             db, session, "CREATE_CURIOSITY", {"fragments": frags},
             "deliberately unresolved",
-            ["None of these is a theory about you yet. They're pieces — the next chapter tests whether they belong together.",
+            ["None of this is a conclusion yet. They're just pieces — next chapter checks whether they fit together.",
              f"Whether {frags[0]} and {frags[-1]} are related is exactly what we don't know yet."], max_words=30)
         beats.append(_beat("restraint", note))
     return [b for b in beats if b]
@@ -227,9 +227,9 @@ def _belief_revision(db, session, st, plan) -> list[dict]:
               f"Earlier, we read you as leaning toward {prev_phrase}.",
               label="What we first thought"),
         _beat("new_evidence",
-              "You told us directly that reading was wrong — and a correction outweighs everything we merely inferred."
+              "You told us straight out that we had it wrong. What you tell us beats anything we worked out ourselves."
               if was_correction else
-              f"Later answers stopped supporting it. The confidence dropped from {payload.get('from', 0.5)} territory to genuinely unclear.",
+              f"Later answers stopped backing it up, so we stopped being sure.",
               label="What changed"),
         _beat("revision", director.generate(
             db, session, "REOPEN_UNCERTAINTY",
@@ -255,22 +255,50 @@ def _contradiction(db, session, st, plan) -> list[dict]:
             {"sideA": dim_phrase(dim, 1), "sideB": dim_phrase(dim, -1)},
             "treating tension as information",
             ["We're not averaging those away. The answer is probably situational — and finding the situation is the interesting part.",
-             "Both are real until proven otherwise. Contradictions like this usually mark where the actual story lives."],
+             "Both are real until something proves otherwise. When your answers disagree like this, it usually means it depends on the situation — and working out which situation is the useful part."],
             max_words=30)),
     ]
     return [b for b in beats if b]
 
 
 def _unexpected_absence(db, session, st, plan) -> list[dict]:
+    """PART 36: an absence only means something next to a presence.
+
+    The earlier version opened on what the system expected and closed by
+    retracting itself — three screens to say "we noticed nothing, and it means
+    nothing". Lead instead with what IS steering the choices, because that is
+    the part a person can recognise; the missing signal then lands as shape
+    rather than as a deficiency notice.
+    """
     payload = plan["drivingEvent"]["payload"]
+    expected = payload.get("expected", "the thing your background would predict")
+    context = payload.get("context", "the experience is clearly there")
+    tops = _strongest(session, 2)
+    lead = tops[0] if tops else None
+    support = tops[1] if len(tops) > 1 else None
+
+    if lead:
+        n = int((session.dimensions or {}).get(lead["dim"], {}).get("evidence_count", 0))
+        opening = (f"Across {n} answers, the thing steering your choices has been "
+                   f"{dim_phrase(lead['dim'], lead['estimate'])}."
+                   if n >= 2 else
+                   f"Your choices keep landing on {dim_phrase(lead['dim'], lead['estimate'])}.")
+    else:
+        opening = "Your choices have been consistent — just not where we first looked for it."
+
+    absence = (f"What hasn't been steering them is {expected} — even though {context}. "
+               f"You clearly have it. You just don't seem to decide by it.")
+    if support:
+        # a colon sidesteps subject-verb agreement: the fragments are a mix of
+        # singular and plural noun phrases and no single verb form fits them all
+        absence += f" What's been doing that work instead: {dim_fragment(support['dim'], support['estimate'])}."
+
     beats = [
-        _beat("expectation", f"Something we expected to see hasn't appeared strongly.",
-              label="An absence"),
-        _beat("absence",
-              f"{payload.get('context', 'Your experience is real').capitalize()}. "
-              f"But {payload.get('expected', 'the expected pattern')} hasn't been the thing consistently driving your choices."),
+        _beat("presence", opening, label="What's actually driving this"),
+        _beat("absence", absence),
         _beat("restraint",
-              "Too early to interpret that. It could mean several different things — worth carrying forward, not concluding on."),
+              "We're not drawing a conclusion from that yet — it could mean several things. "
+              "But it's the most interesting thing we've found, and we're keeping it in view."),
     ]
     return [b for b in beats if b]
 
@@ -297,7 +325,7 @@ def _professional_grounding(db, session, st, plan) -> list[dict]:
     text = director.generate(
         db, session, "OPEN_PROFESSIONAL_CONTEXT", grounding_facts,
         "grounded, adult",
-        ["Until now we watched instinct. This chapter added what instinct lives inside — your actual situation. Some earlier readings just got heavier; others got lighter.",
+        ["Up to now we only had your instincts. This chapter added your actual situation. Some of what we thought got stronger; some got weaker.",
          "Facts change interpretation. The same choices read differently now that we know what you actually do."],
         max_words=34)
     beats.append(_beat("grounding", text))
@@ -329,7 +357,7 @@ def _resonance_shift(db, session, st, plan) -> list[dict]:
                       "source": their.get("source", {}), "strength": m["strength"]})
     beats.append({"type": "resonance", "kind": "resonance",
                   "heading": "Documented patterns, one overlap each", "matches": cards, "empty": False,
-                  "disclaimer": "One narrow professional pattern per person. Different lives, different circumstances."})
+                  "disclaimer": "One work pattern in common. Different people, different circumstances."})
     st.public_figure_matches_shown = list({*(st.public_figure_matches_shown or []),
                                            *[m["figureId"] for m in matches]})
     return [b for b in beats if b]
@@ -347,8 +375,8 @@ def _prediction_test(db, session, st, plan) -> list[dict]:
         _beat("test", director.generate(
             db, session, "SETUP_NEXT_CHAPTER", {"prediction": frag},
             "a falsifiable promise",
-            [f"If that's real, {frag} should survive contact with your actual work next chapter. If it doesn't — the hypothesis was wrong, and we'll say so.",
-             f"Next chapter can break this: when reality enters, {frag} either holds or it doesn't. Either answer is progress."],
+            [f"If that's real, {frag} should still hold once we look at your actual work next chapter. If it doesn't, we were wrong, and we'll say so.",
+             f"Next chapter can break this. Once real life is in the picture, {frag} either holds up or it doesn't. Either way we learn something."],
             max_words=34)),
     ]
     return [b for b in beats if b]
@@ -404,7 +432,7 @@ def _reconstruction(db, session, st, plan) -> list[dict]:
     if concrete:
         beats.append({"type": "reality", "kind": "beat", "label": "What your real life added",
                       "text": (f"Your work as {title} made the pattern concrete. " if title else "")
-                              + f"This isn't only preference — {', and '.join(concrete[:2])}."})
+                              + f"This isn't just what you like — {', and '.join(concrete[:2])}."})
 
     # WHAT YOU ALREADY HAVE
     from . import materialization
@@ -421,9 +449,9 @@ def _reconstruction(db, session, st, plan) -> list[dict]:
         if state.get("confidence", 0) < th.WEAK_INTERNAL:
             unclear.append(dim_fragment(dim, 1))
     if unclear:
-        beats.append({"type": "unclear", "kind": "beat", "label": "What we still would not claim",
+        beats.append({"type": "unclear", "kind": "beat", "label": "What we still can't say",
                       "text": f"We don't know where you land on {' or '.join(unclear[:2])}. "
-                              "Guessing there would cost you more than admitting it."})
+                              "Guessing would cost you more than us admitting it."})
 
     if not beats:
         beats.append({"type": "honest", "kind": "beat", "label": "What we can say",
@@ -441,11 +469,11 @@ def _reconstruction(db, session, st, plan) -> list[dict]:
                 beats[i]["text"] = text
     beats = [b for b in beats if content_policy.validate(b["text"])]
 
-    for line in ["This is not a verdict.",
+    for line in ["This isn't a verdict.",
                  "It's the clearest picture we can build from what you've shown us so far.",
-                 "Some parts are strong. Some are still unfinished. That's useful.",
-                 "Because now we can stop trying to describe you — and start testing what this could become.",
-                 "Discovery complete."]:
+                 "Some of it is solid. Some of it isn't finished. Both are worth knowing.",
+                 "So we can stop describing you now, and start testing what you could actually do.",
+                 "That's the end of the questions."]:
         beats.append({"type": "closing", "kind": "beat", "text": line})
     return beats
 
@@ -496,7 +524,9 @@ def compose_closing(db: Session, session: DiscoverSession, closing_state: str, n
     st = director.get_state(db, session)
     cache = (session.practical_context or {}).get("_closing_cache", {})
     if cache.get("state") == closing_state:
-        return cache["payload"]
+        cached = content_build.fresh(cache)
+        if cached:
+            return cached
     the_plan = closing_planner.plan(db, session, st, closing_state, next_state)
     beats = COMPOSERS[the_plan["structure"]](db, session, st, the_plan)
     # the user's evidence comes first; an external example may follow it, and
@@ -515,6 +545,6 @@ def compose_closing(db: Session, session: DiscoverSession, closing_state: str, n
                "beats": beats, "sections": beats,   # sections: renderer compatibility alias
                "cta": CLOSING_CTA[closing_state], "next": next_state}
     pc = dict(session.practical_context or {})
-    pc["_closing_cache"] = {"state": closing_state, "payload": payload}
+    pc["_closing_cache"] = {"state": closing_state, **content_build.stamped(payload)}
     session.practical_context = pc
     return payload

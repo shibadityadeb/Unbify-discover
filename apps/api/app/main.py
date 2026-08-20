@@ -74,5 +74,25 @@ if not settings.is_production:
         if n or f:
             log.info("seeded %d opportunities, %d public figures", n, f)
 
+class RevalidatingStatic(StaticFiles):
+    """Static assets that must be re-checked before reuse.
+
+    The default headers let a browser keep discover.js indefinitely, so a
+    person testing the app kept running code that had already been replaced —
+    the fix was invisible to them and every reported "bug" was actually an old
+    build. ETags still make the common case a 304 with no body, so this costs a
+    conditional request, not a download.
+    """
+
+    def is_not_modified(self, response_headers, request_headers) -> bool:
+        return super().is_not_modified(response_headers, request_headers)
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if path.endswith((".js", ".css", ".html")) or path in ("", "/"):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return response
+
+
 # the experience layer
-app.mount("/", StaticFiles(directory=str(settings.web_dir), html=True), name="web")
+app.mount("/", RevalidatingStatic(directory=str(settings.web_dir), html=True), name="web")

@@ -185,6 +185,18 @@ def rank(candidates: list[dict], session: DiscoverSession, intent: str | None = 
             factors["part_time_fit"] = 0.08 + (0.5 if intent == "part_time" else 0.0)
         if c["pathway"] == "employment":
             factors["employment_fit"] = 0.1 + (0.4 if intent == "stability" else 0.0)
+            # Someone already running their own business is not a job-seeker.
+            # Leading with an employed role for a founder ignores the single
+            # most important fact they told us, and reads as a system that
+            # wasn't listening. Only an explicit stability intent overrides it.
+            if pc.get("current_status") in ("founder", "freelance") and intent != "stability":
+                factors["already_operating"] = -0.9
+        # ...and the reverse: an operator's real question is what to do WITH the
+        # thing they run, so ownership-shaped pathways start from a real base.
+        if (pc.get("current_status") == "founder"
+                and c["pathway"] in ("business_ownership", "problem_business",
+                                     "product_building", "practice_ownership")):
+            factors["already_operating"] = factors.get("already_operating", 0.0) + 0.35
         if intent == "max_income" and c["selfEmployment"] and c["pathway"] in (
                 "business_ownership", "contracting", "practice_ownership"):
             factors["income_upside"] = 0.3 * float(c["selfEmployment"])

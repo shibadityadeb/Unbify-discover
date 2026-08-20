@@ -130,8 +130,12 @@ def profile_clarity(session: DiscoverSession) -> str:
 
 def _facts_fingerprint(session: DiscoverSession) -> str:
     import hashlib, json as _json
+    from .content_build import CONTENT_BUILD
     pc = session.practical_context or {}
     basis = {k: v for k, v in pc.items() if not k.startswith("_") and k not in ("notes",)}
+    # the composition code is part of what produced the map, so a new build
+    # invalidates it exactly like a new fact does
+    basis["_build"] = CONTENT_BUILD
     return hashlib.sha256(_json.dumps(basis, sort_keys=True, default=str).encode()).hexdigest()[:16]
 
 

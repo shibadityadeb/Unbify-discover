@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from . import experiments, knowledge, products
+from . import experiments, knowledge, products, venture
 from . import thresholds as th
 from .dimensions import DIMENSIONS, dim_fragment, dim_phrase
 from .models import (AmbiguityRecord, DiscoverSession, EvidenceItem, Hypothesis,
@@ -154,22 +154,22 @@ def capability_map(db: Session, session: DiscoverSession) -> list[dict]:
 # ---------------- LEVERAGE MAP ----------------
 
 LEVERAGE_SOURCES = [
-    ("domain_expertise", "Domain knowledge", "years inside one field compound whether or not you notice"),
-    ("network", "People who would take your call", "existing relationships shorten every path"),
-    ("reputation", "A name that precedes you", "trust already earned transfers"),
-    ("audience", "People already listening", "distribution you don't have to rebuild"),
-    ("credentials", "Formal qualifications", "doors that are already unlocked"),
-    ("capital_availability", "Deployable resources", "capital buys time and shortcuts"),
-    ("geographic_access", "Where you are", "location is an asset in local markets"),
+    ("domain_expertise", "Knowing your field", "years in one field add up whether you notice or not"),
+    ("network", "People who'd take your call", "knowing people makes everything faster"),
+    ("reputation", "A name people know", "trust you've already earned carries over"),
+    ("audience", "People who already follow you", "you don't have to find an audience twice"),
+    ("credentials", "Formal qualifications", "some doors are already open to you"),
+    ("capital_availability", "Money you could put in", "money buys you time and shortcuts"),
+    ("geographic_access", "Where you live", "being local is worth real money in some markets"),
 ]
 
 PRACTICAL_LEVERAGE = {
-    "commercial_evidence": ("Proof people pay you", "the hardest thing to fake — you've already done it"),
-    "freelance_experience": ("Independent operating experience", "you've run work without a structure around you"),
-    "people_management_evidence": ("Experience leading people", "responsibility for others transfers widely"),
-    "builds_things": ("A record of finishing things", "shipped work is evidence nothing else replaces"),
-    "years_mentioned": ("Accumulated time in the work", "depth that can't be shortcut"),
-    "technical_decision_authority": ("Ownership of technical decisions", "judgment others already rely on"),
+    "commercial_evidence": ("Proof people pay you", "the hardest thing to fake, and you've already done it"),
+    "freelance_experience": ("Experience working for yourself", "you've run work without a company around you"),
+    "people_management_evidence": ("Experience leading people", "being responsible for others counts almost everywhere"),
+    "builds_things": ("A record of finishing things", "finished work proves things nothing else can"),
+    "years_mentioned": ("Years in the work", "there's no shortcut to time served"),
+    "technical_decision_authority": ("You own the technical calls", "people already trust your judgement"),
 }
 
 
@@ -199,7 +199,7 @@ def leverage_map(db: Session, session: DiscoverSession) -> list[dict]:
             years = pc.get("years_mentioned")
             out.append({"key": "occupation_domain", "strength": 0.75,
                         "label": f"Everything you know about {res['candidates'][0]['label'].lower()} work",
-                        "note": "domain knowledge is the slowest thing to build and the easiest to underrate",
+                        "note": "the slowest thing to build, and the easiest to undervalue in yourself",
                         "basis": (f"{years} years in the work" if years else "your stated occupation"),
                         "evidenceIds": []})
     out.sort(key=lambda x: -x["strength"])
@@ -225,7 +225,7 @@ def gaps(db: Session, session: DiscoverSession, directions: list[dict]) -> list[
             cap_row = db.get(WICapability, key)
             label = (cap_row.label if cap_row else key.replace("_", " "))
             out.append({"key": key, "kind": "capability", "label": label,
-                        "why": f"it's the main thing standing between you and {d['label']}",
+                        "why": f"it's the main thing in the way of {d['label']}",
                         "preferBuy": key in ("customer_acquisition", "sales_selling",
                                              "business_administration"),
                         "blocks": d["label"]})
@@ -239,13 +239,13 @@ def gaps(db: Session, session: DiscoverSession, directions: list[dict]) -> list[
     dims = session.dimensions or {}
     evidence_gaps = [
         ("sales_comfort", "evidence about how you feel selling",
-         "every independent direction depends on it, and we're currently guessing"),
+         "anything you run yourself depends on it, and right now we're guessing"),
         ("time_availability", "a clearer view of the time you actually have",
-         "it decides which directions are realistic this year rather than someday"),
+         "it decides what's realistic this year rather than one day"),
         ("capital_availability", "what resources you could put behind this",
-         "it separates the directions you could start now from the ones that need saving first"),
+         "it separates what you could start now from what needs saving up for first"),
         ("risk_tolerance", "how much downside you'd genuinely accept",
-         "it changes whether the safer or bolder version of a direction fits you"),
+         "it changes whether the safe version or the bold version suits you"),
     ]
     for dim, label, why in evidence_gaps:
         if dim in seen:
@@ -260,7 +260,7 @@ def gaps(db: Session, session: DiscoverSession, directions: list[dict]) -> list[
             continue
         seen.add(amb.key)
         out.append({"key": amb.key, "kind": "ambiguity", "label": amb.description,
-                    "why": "one easy answer would sharpen everything downstream",
+                    "why": "one quick answer would sharpen everything after it",
                     "preferBuy": False, "blocks": None})
     for g in out[:6]:
         _upsert(db, session, "gap", g["key"], g["label"],
@@ -346,8 +346,8 @@ def build(db: Session, session: DiscoverSession) -> dict:
                 "openQuestionCount": len([g for g in gp if g["kind"] in ("evidence", "ambiguity")])}
     routes = products.route(db, session, material)
 
-    intro = ["We spent four chapters understanding the pieces.",
-             "Now let's see what they can actually do."]
+    intro = ["Four chapters to work out how you decide things.",
+             "Here's what that's actually worth."]
     payload = {
         "type": "materialization",
         "intro": intro,
@@ -360,6 +360,33 @@ def build(db: Session, session: DiscoverSession) -> dict:
         "cta": "Enter your Discover space →",
         "next": "DISCOVER_WORKSPACE",
     }
+
+    # OPERATOR BRANCH: someone already running a business is not choosing a job.
+    # Offering them "Facilities Maintenance Technician — employed role" ignores
+    # the most important thing they told us. They get a read on what they run
+    # instead, and role directions are withheld entirely.
+    if venture.is_operator(session):
+        payload["audience"] = "operator"
+        payload["directions"] = []
+        payload["venture"] = {
+            "heading": "What you're actually strong at",
+            "supportingText": "Taken from your own answers — not a job title we picked for you.",
+            "strengths": venture.strengths(db, session),
+            "thinSpots": venture.thin_spots(db, session),
+            "market": venture.market_standing(db, session),
+        }
+        answers = venture.probe_answers(session)
+        payload["explore"] = {
+            "cta": "Explore something interesting for you →",
+            "note": "A few quick questions about how you run it.",
+            "answers": answers,
+            "next": venture.next_probe_step(answers),
+            "read": venture.probe_read(answers),
+            "surfaces": venture.surfaces_for(db, session, answers,
+                                             [c["key"] for c in caps]) if answers else [],
+        }
+    else:
+        payload["audience"] = "explorer"
     snapshot = MaterializationSnapshot(session_id=session.id, version=MATERIALIZATION_VERSION,
                                        payload=payload)
     db.add(snapshot)
