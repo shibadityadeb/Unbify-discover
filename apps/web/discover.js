@@ -1031,6 +1031,59 @@
         row.appendChild(card);
       });
       wrap.appendChild(row);
+      if ((d.possibilities || []).length) {
+        const more = document.createElement("div");
+        more.className = "ws-possibilities";
+        more.innerHTML = `<p class="ws-poss-head">Everything else we can rank</p>
+          <p class="ws-poss-note">${esc(d.rankedBy || "")}</p>`;
+        d.possibilities.forEach((x, i) => {
+          const r = document.createElement("div");
+          r.className = "ws-poss";
+          const demandKnown = x.demand && x.demand.status === "known";
+          r.innerHTML = `
+            <span class="ws-poss-n">${i + 1}</span>
+            <div class="ws-poss-main">
+              <p class="ws-poss-name">${esc(x.label)} <span class="ws-poss-path">${esc(x.pathway || "")}</span></p>
+              <p class="ws-poss-ai">${esc(x.ai ? x.ai.reading : "")}</p>
+              ${(x.youAlreadyHave || []).length
+                ? `<p class="ws-poss-have">You already have: ${esc(x.youAlreadyHave.join(", "))}</p>` : ""}
+            </div>
+            <div class="ws-poss-meta">
+              <span class="ws-poss-fit">${esc(x.fitLabel || "")}</span>
+              <span class="ws-poss-demand ${demandKnown ? "known" : "unknown"}">${
+                esc(demandKnown ? x.demand.label : "demand unknown")}</span>
+              ${x.licensed ? `<span class="ws-poss-lic">licence needed</span>` : ""}
+            </div>`;
+          more.appendChild(r);
+        });
+        if (d.honesty) {
+          const h = document.createElement("p");
+          h.className = "ws-poss-honesty";
+          h.textContent = d.honesty;
+          more.appendChild(h);
+        }
+        wrap.appendChild(more);
+      }
+    } else if (d.kind === "plan") {
+      /* a week you could actually approve: what you do, what it settles, what
+         kills it, and what tools change about doing it now */
+      const pl = d.plan || {};
+      const box = document.createElement("div");
+      box.className = "ws-plan";
+      const line = (k, v) => v ? `<div class="ws-plan-row"><span class="ws-plan-k">${esc(k)}</span>
+          <span class="ws-plan-v">${esc(v)}</span></div>` : "";
+      box.innerHTML =
+        `<p class="ws-plan-do">${esc(pl.whatYouDo || "")}</p>` +
+        line("What it settles", pl.proves) +
+        line("What would kill it", pl.rulesOut) +
+        line("What AI changes", pl.aiAngle) +
+        line("Done looks like", pl.successLooks) +
+        line("If it works", pl.ifItWorks) +
+        line("If it doesn't", pl.ifItDoesnt) +
+        line("What it costs", pl.cost) +
+        ((pl.missing || []).length
+          ? line("Still missing", pl.missing.join(", ")) : "");
+      wrap.appendChild(box);
     } else if (d.kind === "list") {
       const ul = document.createElement("div");
       ul.className = "ws-list";

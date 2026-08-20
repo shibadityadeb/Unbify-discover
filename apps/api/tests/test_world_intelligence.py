@@ -391,3 +391,57 @@ def test_insights_cap_at_ten(db):
     out = insights.top_insights(db, session, None)
     assert len(out["insights"]) <= insights.MAX_INSIGHTS
     assert len({i["headline"] for i in out["insights"]}) == len(out["insights"]), "no duplicates"
+
+
+def test_explore_ranks_on_fit_and_ai_never_on_invented_demand(db):
+    """"Top rising careers" is a claim about demand over time, and every demand
+    signal we hold is a single seeded source below the display bar. The list is
+    ranked on what is knowable and says so."""
+    from app import explore
+    session = make_session(db, practical={"current_occupation_title": "electrician",
+                                          "hands_on_technical": True, "builds_things": True})
+    out = explore.possibilities(db, session)
+    assert out["status"] == "ok" and out["items"], "a resolvable trade must produce directions"
+    assert len(out["items"]) <= explore.TOP_N
+
+    ids = [i["occupationId"] for i in out["items"]]
+    assert len(ids) == len(set(ids)), "one row per occupation"
+
+    for item in out["items"]:
+        assert item["ai"]["posture"] in ("exposed", "amplified", "insulated", "mixed")
+        assert item["ai"]["reading"], "every row needs its AI-era read"
+        assert item["fitLabel"], "a weak match must be labelled, never left to look strong"
+        # demand may only be stated when it is genuinely backed
+        if item["demand"]["status"] == "known":
+            assert "value" in item["demand"]
+        else:
+            assert "label" in item["demand"] and "note" in item["demand"]
+
+    known = out["demandCoverage"]["known"]
+    assert known == 0, "with only seeded signals nothing may be called growing"
+    assert "not on which fields are rising" in out["honesty"]
+
+
+def test_direction_test_is_a_full_plan_without_the_llm(db):
+    """The plan must stand up with the model unavailable, and a half-filled
+    generation must be discarded rather than shown."""
+    from app import explore
+    from app.llm import gateway
+    session = make_session(db, practical={"current_occupation_title": "electrician"})
+
+    original = gateway.generate
+    gateway.generate = lambda *a, **k: None
+    try:
+        plan = explore.direction_test(db, session, {"name": "Owning the business",
+                                                    "firstExperiment": "Quote one real job."})
+        assert plan["source"] == "built"
+        for field in ("whatYouDo", "proves", "rulesOut", "aiAngle",
+                      "successLooks", "ifItWorks", "ifItDoesnt", "cost"):
+            assert plan[field], f"{field} missing from the offline plan"
+
+        # a partial generation is worse than the written one — it must be rejected
+        gateway.generate = lambda *a, **k: {"whatYouDo": "Do the thing", "proves": ""}
+        partial = explore.direction_test(db, session, {"name": "X", "firstExperiment": "Y"})
+        assert partial["source"] == "built", "a half-filled plan must fall back"
+    finally:
+        gateway.generate = original

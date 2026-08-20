@@ -324,19 +324,28 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
     if action_id in LIVE_ACTIONS:
         return live_analysis(db, session, action_id)
     if action_id == "explore":
+        from . import explore as _explore
+        wide = _explore.possibilities(db, session)
         return {"kind": "map", "headline": "Your Opportunity Map",
                 "supportingText": "Three credible futures — explainable, none of them destiny.",
-                "lives": lives}
+                "lives": lives,
+                # the long list: every direction we can rank, each with its AI
+                # posture and an honest demand cell rather than a fabricated one
+                "possibilities": wide.get("items", []),
+                "rankedBy": wide.get("rankedBy"),
+                "demandCoverage": wide.get("demandCoverage"),
+                "honesty": wide.get("honesty")}
     if action_id == "next_move" and primary:
         return {"kind": "single", "headline": "My best next move",
                 "title": primary["name"],
                 "text": primary["firstExperiment"],
                 "note": "Chosen from your top-ranked path and its first missing piece."}
     if action_id == "test_direction" and primary:
-        return {"kind": "single", "headline": "Test a direction",
-                "title": f"A 7-day experiment toward {primary['name']}",
-                "text": f"Timebox it: two evenings. {primary['firstExperiment']} "
-                        f"Then write one honest paragraph — did it give energy or take it?",
+        from . import explore as _explore
+        plan = _explore.direction_test(db, session, primary)
+        return {"kind": "plan", "headline": "Test a direction",
+                "title": f"One week toward {primary['name']}",
+                "plan": plan,
                 "note": "Small enough to be safe. Real enough to produce evidence."}
     if action_id == "gaps":
         gap_dims = sorted(((d, v.get("confidence", 0)) for d, v in dims.items() if v.get("confidence", 0) < 0.3),

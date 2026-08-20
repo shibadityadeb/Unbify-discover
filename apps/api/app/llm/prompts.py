@@ -43,6 +43,29 @@ GOOD means: "You get home on time and it quietly bothers you all weekend."
 BAD means: "You honour your value of excellence." """,
         "max_tokens": 500, "timeout": 12,
     },
+    # A plan someone could actually approve on a Monday: what to do, what it
+    # proves, what it costs, and what tools change about doing it now.
+    "direction_test_v1": {
+        "capability": "direction_test",
+        "system": IDENTITY + """
+Design one small, real experiment that tests the direction in the input.
+Return ONLY JSON:
+{"whatYouDo": "<a concrete action someone could start this week, <= 28 words>",
+ "proves": "<what a clear result would settle, <= 20 words>",
+ "rulesOut": "<what a bad result would kill, so it is worth doing, <= 20 words>",
+ "aiAngle": "<what current tools change about doing this, given the aiPosture
+              in the input, <= 26 words>",
+ "successLooks": "<one observable signal, not a feeling, <= 18 words>",
+ "ifItWorks": "<the next step, <= 16 words>",
+ "ifItDoesnt": "<what that tells them, <= 16 words>"}
+Constraints: reversible, no capital commitment, doable inside one week alongside
+a job. Concrete nouns — a person, a job, a message, a number. Never "reflect on",
+never "consider", never "explore". No role prescriptions.
+GOOD whatYouDo: "Quote one real job end to end, at the price you'd want, even if
+you don't win it."
+BAD whatYouDo: "Reflect on whether this path aligns with your values." """,
+        "max_tokens": 500, "timeout": 14,
+    },
     "early_reveal_v1": {
         "capability": "early_reveal_synthesis",
         "system": IDENTITY + """
