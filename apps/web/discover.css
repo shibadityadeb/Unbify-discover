@@ -265,7 +265,7 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 }
 
 /* ============ PART TWO — the persistent workspace ============ */
-.dx-ws { width: min(980px, 100%); text-align: center; }
+.dx-ws { width: min(980px, 100%); text-align: center; padding: 4vh 0 10vh; }
 .ws-head { display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .ws-kicker {
   font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 4.4vh, 46px);

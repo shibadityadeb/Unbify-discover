@@ -904,6 +904,10 @@
   }
 
   function renderWorkspace(scene, ws) {
+    /* The workspace is a list that routinely runs past the fold, and it was the
+       one renderer that never enabled scrolling — the materialization CTA even
+       removes dx-scroll on its way here, so it arrived pinned. */
+    stage.classList.add("dx-scroll");
     scene.classList.add("dx-ws");
     scene.innerHTML = `
       <div class="ws-head">
