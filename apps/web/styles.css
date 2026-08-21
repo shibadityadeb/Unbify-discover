@@ -266,7 +266,11 @@ body {
 /* ---------- CTA ---------- */
 .cta-wrap { position: relative; margin-top: 5vh; width: 218px; height: 218px; }
 .have-audit {
-  margin-top: 18px; background: none; border: 0; cursor: pointer;
+  /* sits where the scroll-hint chevron and the product tiles can crowd it at
+     short viewports: it must always win the click, and keep its own ground */
+  position: relative; z-index: 46;
+  margin-top: 18px; padding: 8px 14px; background: rgba(250, 243, 230, .82);
+  border: 0; border-radius: 20px; cursor: pointer;
   font-family: var(--sans, system-ui); font-size: 12px; letter-spacing: .12em;
   color: #a08a5e;
 }
@@ -1536,6 +1540,15 @@ html { overflow-x: hidden; }
 }
 .product-desc {
   font-family: var(--sans, system-ui); font-size: 12px; line-height: 1.65; color: #6e6557;
+}
+
+/* Tighter desktops: the strip compacts to icon chips so it never crowds the
+   center column — the hover card still carries the full name and description. */
+@media (max-width: 1420px) and (min-width: 761px) and (min-height: 481px) {
+  .products-label { display: none; }
+  .products-row { gap: 10px; }
+  .product { padding: 10px 12px; }
+  .product .product-name { display: none; }
 }
 
 /* Phone / stacked flow: the family is the last stop of the scroll —

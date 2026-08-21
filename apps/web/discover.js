@@ -1982,16 +1982,46 @@
     handlePayload({ chapter: "TRANSFORMATION", state: "MATERIALIZATION", interaction: data });
   }
 
+  /* Signed in, but this account has never finished a journey: say so plainly
+     and hand them the start, instead of leaving a sign-in form up. */
+  function openNoAuditNotice() {
+    if (document.querySelector(".dx-auth-back")) return;
+    const back = document.createElement("div");
+    back.className = "dx-auth-back";
+    const box = document.createElement("div");
+    box.className = "dx-auth";
+    box.innerHTML = `
+      <button class="dx-auth-x" aria-label="Close">×</button>
+      <p class="dx-auth-kicker">No audit on this account yet</p>
+      <p class="dx-auth-sub">The journey comes first — a few minutes, free, no
+      predetermined answer. Your audit is what it produces.</p>
+      <button class="dx-commit ready dx-auth-go">Begin your journey</button>`;
+    back.appendChild(box);
+    document.body.appendChild(back);
+    const close = () => back.remove();
+    back.addEventListener("click", e => { if (e.target === back) close(); });
+    box.querySelector(".dx-auth-x").addEventListener("click", close);
+    box.querySelector(".dx-auth-go").addEventListener("click", () => {
+      close();
+      document.getElementById("ctaBtn")?.click();
+    });
+  }
+
   function openAuditFlow() {
     const attempt = async (user, ui) => {
-      await withBusy("Fetching your audit…", () => openAuditPage());
-      ui?.close();
+      try {
+        await withBusy("Fetching your audit…", () => openAuditPage());
+        ui?.close();
+      } catch (e) {
+        if (e.code === "no_audit") { ui?.close(); openNoAuditNotice(); return; }
+        throw e;
+      }
     };
     if (authState()) {
       attempt().catch(e => {
         if (e.status === 401) { clearAuthState(); openAuditFlow(); return; }
         openAuthModal({ mode: "login", title: "Your audit",
-                        sub: e.code === "no_audit" ? e.message : "Sign in to open the audit you already made.",
+                        sub: "Sign in to open the audit you already made.",
                         onAuthed: attempt });
       });
       return;
