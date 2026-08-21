@@ -48,7 +48,17 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 }
 .dx-support { margin-top: 14px; font-size: clamp(16px, 2.3vh, 20px); color: #6e655b; line-height: 1.55; max-width: 34em; }
 
-.dx-word { display: inline-block; opacity: 0; filter: blur(3px); transform: translateY(6px); }
+/* Safari paints background-clip:text wrong when the clipped element's
+   DESCENDANTS carry transforms or filters: every word-by-word headline
+   rendered as a pile of superimposed glyphs at the page corner. Each word
+   therefore clips its own gradient (self-transforms are safe), and the
+   parent drops its background whenever word spans are present. */
+.dx-headline:has(.dx-word) { background: none; }
+.dx-word {
+  display: inline-block; opacity: 0; filter: blur(3px); transform: translateY(6px);
+  background: linear-gradient(178deg, #a9853f 8%, #86642e 62%, #74561f 100%);
+  -webkit-background-clip: text; background-clip: text;
+}
 .dx-word.in { opacity: 1; filter: blur(0); transform: translateY(0); transition: opacity .5s ease, filter .5s ease, transform .5s ease; }
 
 /* ---------- visual choice ---------- */
