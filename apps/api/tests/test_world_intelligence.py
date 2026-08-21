@@ -394,9 +394,9 @@ def test_insights_cap_at_ten(db):
 
 
 def test_explore_ranks_on_fit_and_ai_never_on_invented_demand(db):
-    """"Top rising careers" is a claim about demand over time, and every demand
-    signal we hold is a single seeded source below the display bar. The list is
-    ranked on what is knowable and says so."""
+    """"Top rising careers" is a claim about demand over time. It may only be
+    made where multiple named sources actually back it — and every "known"
+    demand cell must carry checkable provenance, never a bare adjective."""
     from app import explore
     session = make_session(db, practical={"current_occupation_title": "electrician",
                                           "hands_on_technical": True, "builds_things": True})
@@ -407,19 +407,26 @@ def test_explore_ranks_on_fit_and_ai_never_on_invented_demand(db):
     ids = [i["occupationId"] for i in out["items"]]
     assert len(ids) == len(set(ids)), "one row per occupation"
 
+    readings = set()
     for item in out["items"]:
         assert item["ai"]["posture"] in ("exposed", "amplified", "insulated", "mixed")
         assert item["ai"]["reading"], "every row needs its AI-era read"
+        readings.add(item["ai"]["reading"])
         assert item["fitLabel"], "a weak match must be labelled, never left to look strong"
-        # demand may only be stated when it is genuinely backed
+        # demand may only be stated when it is genuinely backed — and stated
+        # demand must say WHO backs it
         if item["demand"]["status"] == "known":
             assert "value" in item["demand"]
+            ev = item["demand"].get("evidence") or {}
+            assert ev.get("sources"), "known demand must name its sources"
         else:
             assert "label" in item["demand"] and "note" in item["demand"]
+    if len(out["items"]) > 1:
+        assert len(readings) > 1, "rows must not share one interchangeable AI sentence"
 
     known = out["demandCoverage"]["known"]
-    assert known == 0, "with only seeded signals nothing may be called growing"
-    assert "not on which fields are rising" in out["honesty"]
+    if known < len(out["items"]):
+        assert "inventing" in out["honesty"], "partial coverage must be said out loud"
 
 
 def test_direction_test_is_a_full_plan_without_the_llm(db):

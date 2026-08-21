@@ -103,6 +103,29 @@ def signal_for(db: Session, occupation_id: str, construct: str,
             .filter_by(occupation_id=occupation_id, construct=construct, geography="*").first())
 
 
+def demand_evidence(db: Session, signal: WIMarketSignal | None) -> dict:
+    """The provenance behind a demand signal, stated so the reader can check it:
+    which named sources, and each source's own wording where it carried one."""
+    if not signal or not signal.evidence_refs:
+        return {"sources": [], "citations": []}
+    obs = (db.query(WISourceObservation)
+           .filter(WISourceObservation.id.in_(signal.evidence_refs)).all())
+    src_ids = {o.source_id for o in obs}
+    names = {s.id: s.name for s in
+             db.query(WISource).filter(WISource.id.in_(src_ids)).all()}
+    citations = []
+    for o in obs:
+        v = o.value or {}
+        if v.get("note"):
+            citations.append({"source": names.get(o.source_id, o.source_id),
+                              "note": v["note"],
+                              "growthPct": v.get("growthPct"),
+                              "horizon": v.get("horizon"),
+                              "level": v.get("level")})
+    return {"sources": sorted(names.get(s, s) for s in src_ids),
+            "citations": citations}
+
+
 def freshness_days(signal: WIMarketSignal | None) -> int | None:
     if not signal:
         return None

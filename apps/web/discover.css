@@ -950,6 +950,16 @@ body.dx-busy-on { cursor: progress; }
 }
 .ws-poss-ai { font-family: var(--sans); font-size: 12px; line-height: 1.5; color: #8a6f42; margin-top: 3px; }
 .ws-poss-have { font-family: var(--sans); font-size: 11px; color: #a3762f; margin-top: 3px; }
+.ws-poss-missing { font-family: var(--sans); font-size: 11px; color: #8d7f6c; margin-top: 2px; }
+.ws-poss-bars { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-width: 340px; }
+.ws-bar-row { display: flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 10px; color: #8a6f42; }
+.ws-bar-row em { font-style: normal; width: 92px; text-align: right; letter-spacing: .04em; }
+.ws-bar-row b { font-weight: 500; width: 32px; }
+.ws-bar { flex: 1; height: 5px; background: rgba(163, 118, 47, .14); border-radius: 3px; overflow: hidden; }
+.ws-bar i { display: block; height: 100%; border-radius: 3px; background: #b98a3e; }
+.ws-bar i.good { background: #7d9b62; }
+.ws-bar i.risk { background: #c07a45; }
+.ws-poss-cites { font-family: var(--sans); font-size: 10.5px; line-height: 1.6; color: #97876e; margin-top: 7px; }
 .ws-poss-meta { flex: 0 0 132px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .ws-poss-fit, .ws-poss-demand, .ws-poss-lic {
   font-family: var(--sans); font-size: 9.5px; letter-spacing: .08em; text-align: right;

@@ -1064,6 +1064,16 @@
           const r = document.createElement("div");
           r.className = "ws-poss";
           const demandKnown = x.demand && x.demand.status === "known";
+          const cites = demandKnown ? ((x.demand.evidence || {}).citations || []) : [];
+          const growth = cites.map(c => c.growthPct).filter(g => typeof g === "number");
+          const demandLabel = demandKnown
+            ? x.demand.label + (growth.length ? ` · +${Math.max(...growth)}% projected` : "")
+            : "demand unknown";
+          const sources = demandKnown ? ((x.demand.evidence || {}).sources || []) : [];
+          const bar = (label, v, cls) => `
+            <span class="ws-bar-row"><em>${label}</em>
+              <span class="ws-bar"><i class="${cls}" style="width:${Math.round(v * 100)}%"></i></span>
+              <b>${Math.round(v * 100)}%</b></span>`;
           r.innerHTML = `
             <span class="ws-poss-n">${i + 1}</span>
             <div class="ws-poss-main">
@@ -1071,11 +1081,20 @@
               <p class="ws-poss-ai">${esc(x.ai ? x.ai.reading : "")}</p>
               ${(x.youAlreadyHave || []).length
                 ? `<p class="ws-poss-have">You already have: ${esc(x.youAlreadyHave.join(", "))}</p>` : ""}
+              ${(x.missing || []).length
+                ? `<p class="ws-poss-missing">The gap: ${esc(x.missing.join(", "))}</p>` : ""}
+              <div class="ws-poss-bars">
+                ${x.ai ? bar("AI leverage", x.ai.augmentationPotential, "good") : ""}
+                ${x.ai ? bar("automation risk", x.ai.automationExposure, "risk") : ""}
+                ${demandKnown && typeof x.demand.value === "number" ? bar("demand", x.demand.value, "good") : ""}
+              </div>
+              ${cites.length ? `<p class="ws-poss-cites">${cites.map(c =>
+                  esc(c.note + (c.horizon ? ` (${c.horizon})` : "")) + " — " + esc(c.source)
+                ).join("<br>")}</p>` : ""}
             </div>
             <div class="ws-poss-meta">
               <span class="ws-poss-fit">${esc(x.fitLabel || "")}</span>
-              <span class="ws-poss-demand ${demandKnown ? "known" : "unknown"}">${
-                esc(demandKnown ? x.demand.label : "demand unknown")}</span>
+              <span class="ws-poss-demand ${demandKnown ? "known" : "unknown"}">${esc(demandLabel)}</span>
               ${x.licensed ? `<span class="ws-poss-lic">licence needed</span>` : ""}
             </div>`;
           more.appendChild(r);
