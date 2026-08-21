@@ -72,13 +72,18 @@ if not settings.is_production:
     # be missing the auth columns and every login would 500. Adding a column is
     # the one migration sqlite and postgres both do in place.
     from sqlalchemy import inspect as sa_inspect
-    _existing = {c["name"] for c in sa_inspect(engine).get_columns("users")}
-    _wanted = {"name": "VARCHAR(120)", "password_hash": "VARCHAR(256)",
-               "google_sub": "VARCHAR(64)", "last_login_at": "TIMESTAMP"}
+    _shims = {
+        "users": {"name": "VARCHAR(120)", "password_hash": "VARCHAR(256)",
+                  "google_sub": "VARCHAR(64)", "last_login_at": "TIMESTAMP"},
+        "market_postings": {"description": "TEXT"},
+    }
+    _inspector = sa_inspect(engine)
     with engine.begin() as conn:
-        for col, ddl in _wanted.items():
-            if col not in _existing:
-                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {ddl}"))
+        for _table, _wanted in _shims.items():
+            _existing = {c["name"] for c in _inspector.get_columns(_table)}
+            for col, ddl in _wanted.items():
+                if col not in _existing:
+                    conn.execute(text(f"ALTER TABLE {_table} ADD COLUMN {col} {ddl}"))
     with SessionLocal() as db:
         n = seed_opportunities(db)
         from .figure_kb import seed_figures

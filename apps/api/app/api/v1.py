@@ -193,6 +193,23 @@ def intelligence_recommendations(session_id: str, force: bool = False,
     return out
 
 
+@router.get("/discover/sessions/{session_id}/intelligence/growth")
+def intelligence_profile_growth(session_id: str, force: bool = False,
+                                db: Session = Depends(get_db)):
+    """Profile Growth Intelligence: whether THIS person's capability set is
+    becoming more valuable in the AI economy — measured, classified and scored
+    deterministically; the model plans and explains only."""
+    session = _get_session(db, session_id)
+    if session.journey_status not in ("MATERIALIZATION", "DISCOVER_WORKSPACE"):
+        raise HTTPException(409, "profile growth opens after the story completes")
+    from ..intelligence import profile_growth
+    out = profile_growth.analyze(db, session, force=force)
+    emit(db, session_id, "intelligence.profile_growth",
+         {"trajectory": out.get("trajectory"), "cache": out.get("cache", {})})
+    db.commit()
+    return out
+
+
 # ---------------- accounts: the audit belongs to someone ----------------
 
 class SignupIn(BaseModel):

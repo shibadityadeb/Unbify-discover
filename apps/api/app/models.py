@@ -1066,6 +1066,9 @@ class MarketPosting(Base):
     salary_max: Mapped[float | None] = mapped_column(Float, nullable=True)
     salary_currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
     skills: Mapped[list] = mapped_column(JSON, default=list)
+    # lowercase, truncated description text: capability-penetration measurement
+    # needs to see what the work actually asks for, not only the title
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     url: Mapped[str | None] = mapped_column(String(600), nullable=True)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     retrieved_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
