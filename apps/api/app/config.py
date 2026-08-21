@@ -38,6 +38,11 @@ class Settings:
     litellm_model: str = "gpt-5.6-luna"
     session_secret: str = field(default_factory=lambda: os.environ.get("SESSION_SECRET", "dev-only-secret"))
     google_client_id: str = field(default_factory=lambda: os.environ.get("GOOGLE_CLIENT_ID", ""))
+    # live market discovery (server-side only; the token never leaves the API)
+    apify_jobs_actor: str = field(default_factory=lambda: os.environ.get(
+        "APIFY_JOBS_ACTOR", "fantastic-jobs~career-site-job-listing-api"))
+    live_market_enabled: bool = field(default_factory=lambda: os.environ.get(
+        "LIVE_MARKET_ENABLED", "1") == "1")
     app_url: str = field(default_factory=lambda: os.environ.get("APP_URL", "http://localhost:8000"))
     apify_token: str = field(default_factory=lambda: os.environ.get("APIFY_TOKEN", ""))
     apify_webhook_secret: str = field(default_factory=lambda: os.environ.get("APIFY_WEBHOOK_SECRET", ""))

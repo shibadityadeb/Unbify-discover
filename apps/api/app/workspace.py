@@ -212,6 +212,8 @@ def available_actions(session: DiscoverSession) -> list[dict]:
         return dims.get(d, {}).get("estimate", 0.0)
 
     actions = [
+        {"id": "opportunities", "label": "My AI opportunity radar",
+         "hint": "Discovered from your capabilities, backed by live market evidence"},
         {"id": "position", "label": "Analyze my current professional position", "hint": "Fit, friction, leverage, optionality"},
         {"id": "explore", "label": "Explore my possibilities", "hint": "Your ranked Opportunity Map"},
         {"id": "next_move", "label": "My best next move", "hint": "One high-value step, this week"},
@@ -290,6 +292,13 @@ def _direction_to_life(d: dict) -> dict:
 
 
 def action_content(db: Session, session: DiscoverSession, action_id: str) -> dict:
+    if action_id == "opportunities":
+        # the dynamic pipeline IS the recommendation surface: capabilities →
+        # discovered opportunities → market evidence → deterministic ranking
+        from .intelligence import pipeline
+        out = pipeline.run(db, session)
+        return {"kind": "intelligence", "headline": "Your AI opportunity radar",
+                **out}
     lives = _latest_lives(db, session, refresh=(action_id == "explore"))
     dims = session.dimensions or {}
     resonant = (session.practical_context or {}).get("resonant_life")
@@ -471,6 +480,7 @@ def _saved(db: Session, session: DiscoverSession) -> list:
 # §25: actions themselves are ranked — the top one is "most useful right now",
 # never "the objectively correct action"
 ACTION_PRIORS = {
+    "opportunities": {"value": 0.95, "effort": 0.1},
     "whats_changing": {"value": 0.8, "effort": 0.15},
     "transfer": {"value": 0.75, "effort": 0.15},
     "independent_paths": {"value": 0.7, "effort": 0.2},

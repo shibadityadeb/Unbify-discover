@@ -162,6 +162,37 @@ def advance(session_id: str, body: Advance, db: Session = Depends(get_db)):
     return {"sessionId": session.id, **step}
 
 
+# ---------------- opportunity intelligence ----------------
+
+@router.get("/discover/sessions/{session_id}/intelligence/profile")
+def intelligence_profile(session_id: str, db: Session = Depends(get_db)):
+    """The structured capability profile extracted from this journey."""
+    session = _get_session(db, session_id)
+    if session.journey_status not in ("MATERIALIZATION", "DISCOVER_WORKSPACE"):
+        raise HTTPException(409, "the profile is extracted once the story completes")
+    from ..intelligence import profile as profile_svc
+    out = profile_svc.extract(db, session)
+    db.commit()
+    return out
+
+
+@router.get("/discover/sessions/{session_id}/intelligence/recommendations")
+def intelligence_recommendations(session_id: str, force: bool = False,
+                                 db: Session = Depends(get_db)):
+    """The full dynamic pipeline: capabilities → discovered opportunities →
+    market evidence → deterministic ranking. Cached against the profile hash;
+    pass force=true to recompute."""
+    session = _get_session(db, session_id)
+    if session.journey_status not in ("MATERIALIZATION", "DISCOVER_WORKSPACE"):
+        raise HTTPException(409, "recommendations open after the story completes")
+    from ..intelligence import pipeline
+    out = pipeline.run(db, session, force=force)
+    emit(db, session_id, "intelligence.recommendations",
+         {"count": len(out.get("recommendations", [])), "cache": out.get("cache", {})})
+    db.commit()
+    return out
+
+
 # ---------------- accounts: the audit belongs to someone ----------------
 
 class SignupIn(BaseModel):

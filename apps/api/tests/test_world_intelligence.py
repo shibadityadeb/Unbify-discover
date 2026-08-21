@@ -65,8 +65,10 @@ def test_external_mappings_are_not_the_canonical_ids(db):
 # ---------------- compliance + ingestion ----------------
 
 def test_noncompliant_source_is_rejected(db):
+    # src_community_signals remains uncleared; the career-site postings source
+    # is now compliant by design, so it no longer serves as the example here
     from app.world.ingestion import ingest_source
-    run = ingest_source(db, "src_apify_job_postings",
+    run = ingest_source(db, "src_community_signals",
                         [{"signal_type": "demand_direction", "value": {"level": 0.9},
                           "occupation_refs": ["occupation_unbify_software"]}])
     assert run.status == "failed"

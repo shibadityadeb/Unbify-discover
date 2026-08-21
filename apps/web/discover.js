@@ -989,6 +989,12 @@
     h.textContent = d.headline;
     wrap.appendChild(h);
 
+    if (d.kind === "intelligence") {
+      renderIntelligence(wrap, d);
+      wrap.appendChild(backRow(body, ws));
+      body.appendChild(wrap);
+      return;
+    }
     if (d.kind === "live_map") {
       const sub = document.createElement("p");
       sub.className = "dx-support";
@@ -1180,6 +1186,97 @@
     }
     wrap.appendChild(backRow(body, ws));
     body.appendChild(wrap);
+  }
+
+  /* ---- the opportunity radar: evidence, not certainty ---- */
+
+  function renderIntelligence(wrap, d) {
+    const bar = (label, v, cls) => `
+      <span class="ws-bar-row"><em>${esc(label)}</em>
+        <span class="ws-bar"><i class="${cls}" style="width:${Math.round((v || 0) * 100)}%"></i></span>
+        <b>${Math.round((v || 0) * 100)}%</b></span>`;
+
+    const prof = d.profile || {};
+    const caps = (prof.capabilities || []).slice(0, 10);
+    if (caps.length) {
+      const p = document.createElement("div");
+      p.className = "dx-intel-profile";
+      p.innerHTML = `<p class="ws-poss-head">Your current capabilities</p>
+        <p class="dx-intel-caps">${caps.map(c => `<span class="dx-intel-cap">${esc(c.name)}</span>`).join("")}</p>`;
+      const ai = prof.aiOnYourWork || {};
+      const aiBits = [
+        (ai.augments || []).length ? `AI amplifies: ${esc(ai.augments.slice(0, 3).join(", "))}` : "",
+        (ai.automates || []).length ? `AI can take over: ${esc(ai.automates.slice(0, 3).join(", "))}` : "",
+        (ai.humanEssential || []).length ? `Stays human: ${esc(ai.humanEssential.slice(0, 3).join(", "))}` : "",
+      ].filter(Boolean);
+      if (aiBits.length) p.innerHTML += `<p class="dx-intel-ai">${aiBits.join(" · ")}</p>`;
+      wrap.appendChild(p);
+    }
+
+    const list = document.createElement("div");
+    list.className = "dx-intel-list";
+    (d.recommendations || []).forEach(r => {
+      const card = document.createElement("div");
+      card.className = "dx-intel-card";
+      const so = r.skillOverlap || {};
+      const im = r.impact || {};
+      const dm = r.demand || {};
+      const ex = r.explanation || {};
+      const windows = dm.windows || {};
+      const growthBits = Object.entries(windows)
+        .filter(([, w]) => w && w.state === "ok")
+        .map(([name, w]) => `${name}: ${w.pct >= 0 ? "+" : ""}${w.pct}%`);
+      const evidence = (r.evidence || []);
+      card.innerHTML = `
+        <div class="dx-intel-top">
+          <span class="dx-intel-type dx-intel-type-${esc(r.type)}">${esc((r.type || "").toUpperCase())}</span>
+          <h3 class="dx-intel-title">${esc(r.title)}</h3>
+          <span class="dx-intel-score">${esc(String(r.score))}<i>/100 fit</i></span>
+        </div>
+        ${r.whyFromProfile ? `<p class="dx-intel-why">${esc(r.whyFromProfile)}</p>` : ""}
+        <div class="ws-poss-bars">
+          ${bar("skill overlap", so.overall, "good")}
+          ${bar("AI leverage", im.aiLeverage, "good")}
+          ${bar("automation risk", im.automationRisk, "risk")}
+          ${bar("human advantage", im.humanAdvantage, "good")}
+        </div>
+        <p class="dx-intel-demand">
+          Demand: <b>${esc(dm.direction || "unknown")}</b>
+          ${dm.livePostings ? ` · ${esc(String(dm.livePostings))} live postings` : ""}
+          ${growthBits.length ? ` · ${esc(growthBits.join(" · "))}` : " · growth: insufficient historical data"}
+          ${r.salary && r.salary.median ? ` · median ${esc(String(r.salary.median))} ${esc(r.salary.currency || "")}` : ""}
+        </p>
+        ${so.have && so.have.length ? `<p class="ws-poss-have">You already have: ${esc(so.have.concat(so.transferable || []).slice(0, 4).join(", "))}</p>` : ""}
+        ${so.largestGap ? `<p class="ws-poss-missing">Largest gap: ${esc(so.largestGap)}</p>` : ""}
+        ${ex.whyFitsYou ? `<p class="dx-intel-exp"><b>Why this fits you.</b> ${esc(ex.whyFitsYou)}</p>` : ""}
+        ${ex.whatToLearn ? `<p class="dx-intel-exp"><b>What you'd learn.</b> ${esc(ex.whatToLearn)}</p>` : ""}
+        ${ex.whyMarketMoves ? `<p class="dx-intel-exp"><b>Why the market is moving.</b> ${esc(ex.whyMarketMoves)}</p>` : ""}
+        ${ex.firstStep ? `<p class="dx-intel-exp"><b>First step.</b> ${esc(ex.firstStep)}</p>` : ""}
+        <p class="dx-intel-state">${esc((r.evidenceState || "").replace(/_/g, " ").toLowerCase())}</p>
+        ${evidence.length ? `<div class="ws-poss-cites">${evidence.map(e =>
+            `${esc(e.source)}${e.value !== undefined && e.value !== null ? " — " + esc(String(e.value)) : ""}${e.period ? " (" + esc(e.period) + ")" : ""}${e.url ? ` · <a href="${esc(e.url)}" target="_blank" rel="noopener">source</a>` : ""}`
+          ).join("<br>")}</div>` : `<p class="ws-poss-cites">Evidence insufficient — no market claim made.</p>`}
+        ${dm.lastUpdated ? `<p class="dx-intel-updated">Last updated ${esc(String(dm.lastUpdated).slice(0, 16).replace("T", " "))} UTC</p>` : ""}`;
+      list.appendChild(card);
+    });
+    wrap.appendChild(list);
+
+    if ((d.emergingClusters || []).length) {
+      const em = document.createElement("div");
+      em.className = "dx-intel-emerging";
+      em.innerHTML = `<p class="ws-poss-head">Emerging in the live market</p>` +
+        d.emergingClusters.slice(0, 5).map(c =>
+          `<p class="dx-intel-cluster">${esc(c.canonicalTitle)} — ${esc(String(c.postings))} postings, ${esc(String(c.companies))} companies</p>`).join("");
+      wrap.appendChild(em);
+    }
+    const meta = d.meta || {};
+    const note = document.createElement("p");
+    note.className = "ws-poss-honesty";
+    const live = meta.liveMarket || {};
+    note.textContent = (live.enabled
+      ? "Ranked by a fixed, published formula over your skill overlap and the market evidence above."
+      : `Live market signals unavailable (${live.why || "disabled"}) — showing capability fit and official readings only.`);
+    wrap.appendChild(note);
   }
 
   function showQuestions(body, ws) {
@@ -1770,6 +1867,15 @@
     sessionId = me.auditSessionId;
     ensureDom();
     document.body.classList.add("dx-open");
+    /* someone already in their workspace resumes there — the audit page's
+       "enter" transition only exists once, and replaying it would 409 */
+    const state = await api(`/sessions/${sessionId}`, undefined, { method: "GET" });
+    if (state.state === "DISCOVER_WORKSPACE") {
+      const data = await api("/sessions", { sessionId });
+      clearStage();
+      handlePayload(data);
+      return;
+    }
     const data = await api(`/sessions/${sessionId}/materialization`, undefined, { method: "GET" });
     clearStage();
     handlePayload({ chapter: "TRANSFORMATION", state: "MATERIALIZATION", interaction: data });

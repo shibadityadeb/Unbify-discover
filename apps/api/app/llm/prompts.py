@@ -203,4 +203,87 @@ about what 'manage' means. NEVER infer roles, seniority, preference, or
 psychology. When unsure, put it in ambiguities, not facts.""",
         "max_tokens": 350, "timeout": 16,
     },
+
+    # ---------------- opportunity intelligence ----------------
+    # The LLM extracts structure and generates hypotheses. It NEVER supplies
+    # market numbers: demand, growth and salaries come only from the evidence
+    # layer, and any numeric market claim in a completion is discarded.
+    "capability_extraction_v1": {
+        "capability": "capability_extraction",
+        "system": """You extract a structured capability profile from a person's
+self-discovery questionnaire evidence. You are given their answers, free-text
+descriptions and any extracted professional facts.
+
+Decompose what they DO into underlying capabilities — never stop at a job
+title. A doctor is diagnosis, patient communication, clinical decision making,
+documentation, regulatory awareness. A carpenter is measurement, spatial
+reasoning, material selection, estimation, customer interaction. A founder is
+sales, customer discovery, hiring, operations, prioritization. A student is
+coursework domains, projects, tools, mathematics, communication.
+
+Return ONLY JSON with exactly these keys (arrays of short lowercase strings
+unless stated):
+{"identity_context": [], "current_occupation": "<string or empty>",
+ "industry": [], "technical_skills": [], "domain_knowledge": [],
+ "soft_skills": [], "business_skills": [], "tools": [], "credentials": [],
+ "education": [], "experience": [], "tasks_performed": [], "interests": [],
+ "constraints": [], "location": "<string or empty>", "career_goals": [],
+ "entrepreneurial_intent": "<none|curious|active|operating>",
+ "ai_experience": [],
+ "capabilities": [{"name": "", "type": "technical|domain|soft|business|tool",
+                   "confidence": 0.0}],
+ "adjacent_capabilities": [], "latent_capabilities": [],
+ "ai_augments": ["<tasks of theirs AI amplifies>"],
+ "ai_automates": ["<tasks of theirs AI can do alone>"],
+ "human_essential": ["<tasks needing human presence/trust>"]}
+
+Only include what the evidence supports; confidence reflects how directly it
+was stated. Never invent credentials, employers, or market facts.""",
+        "max_tokens": 1400, "timeout": 25,
+    },
+    "opportunity_generation_v1": {
+        "capability": "opportunity_generation",
+        "system": """You generate candidate opportunities for a person from their
+capability profile. Candidates are HYPOTHESES — a separate evidence layer will
+validate them against live market data, so do not include any demand, growth,
+or salary claims.
+
+Generate 8-14 diverse candidates across these types:
+- career: employed roles, including AI-era and emerging ones
+- business: services, consulting, automation or product opportunities they
+  could run (only when entrepreneurial_intent is not "none")
+- skill: one high-leverage capability worth building now
+- transition: a staged move (e.g. doctor -> clinical AI implementation)
+
+Ground every candidate in their ACTUAL capabilities — a carpenter gets
+construction technology, digital fabrication, AI-assisted estimation; NOT
+generic software jobs. Respect constraints and location.
+
+Return ONLY JSON:
+{"candidates": [{
+  "title": "<specific, market-recognizable>",
+  "type": "career|business|skill|transition",
+  "required_capabilities": ["<6-10 lowercase capabilities the work needs>"],
+  "why_from_profile": "<one sentence tying it to THEIR capabilities>",
+  "ai_leverage": 0.0, "automation_risk": 0.0, "human_advantage": 0.0,
+  "search_terms": ["<2-4 job-market search phrases for this candidate>"],
+  "steps": ["<for transition type: 2-4 stage names>"]
+}]}
+ai_leverage / automation_risk / human_advantage are your structural assessment
+of the WORK itself (0-1), not market predictions.""",
+        "max_tokens": 1800, "timeout": 30,
+    },
+    "recommendation_explain_v1": {
+        "capability": "recommendation_explain",
+        "system": IDENTITY + """
+You write the explanation for ONE already-scored recommendation. All numbers
+(score, overlap, demand, growth) were computed elsewhere and are in the input —
+repeat them faithfully or omit them; never change or invent one.
+Return ONLY JSON:
+{"whyFitsYou": "<2 sentences tying their named capabilities to the work>",
+ "whatToLearn": "<1-2 sentences naming the specific gaps from the input>",
+ "whyMarketMoves": "<1-2 sentences restating ONLY the evidence given>",
+ "firstStep": "<one concrete, this-week action>"}""",
+        "max_tokens": 500, "timeout": 15,
+    },
 }
