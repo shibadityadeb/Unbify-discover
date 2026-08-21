@@ -411,23 +411,35 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 
 /* ============ user-paced chapter closings ============ */
 .dx-stage.dx-scroll { align-items: flex-start; overflow-y: auto; }
+/* A closing is one argument in three or four moves. At the old 12vh rhythm each
+   short sentence claimed a full screen, so reading it meant scrolling past the
+   beat you were meant to be holding in mind alongside the next one. It is now
+   sized to sit on one screen and centre itself when it fits, and only scrolls
+   when a closing genuinely carries more (evidence rows, a quote, the mirror). */
 .dx-closingpage {
-  min-height: 100%; padding: 12vh 0 14vh;
-  display: flex; flex-direction: column; align-items: center; gap: 12vh;
+  min-height: 100%; padding: 5vh 0 6vh;
+  display: flex; flex-direction: column; align-items: center;
+  /* auto margins centre the beats when they fit and collapse to zero when they
+     do not, so a taller closing (evidence rows, a quote) scrolls from its top
+     instead of overflowing upward out of reach — which centring alone does */
+  justify-content: flex-start;
+  gap: 4.5vh;
 }
+.dx-closingpage > :first-child { margin-top: auto; }
+.dx-closingpage > :last-child { margin-bottom: auto; }
 .dx-close-sec {
-  max-width: 620px; text-align: center;
+  max-width: 720px; text-align: center;
   opacity: 0; transform: translateY(18px);
   transition: opacity 1.1s ease, transform 1.1s cubic-bezier(.3,.6,.3,1);
 }
 .dx-close-sec.in { opacity: 1; transform: translateY(0); }
 .dx-close-sec .cs-label {
-  font-family: var(--sans); font-size: 9.5px; letter-spacing: .34em; text-transform: uppercase;
-  color: #a3762f; margin-bottom: 12px;
+  font-family: var(--sans); font-size: 9px; letter-spacing: .3em; text-transform: uppercase;
+  color: #a3762f; margin-bottom: 8px;
 }
 .dx-close-sec .cs-text {
   font-family: var(--serif); font-weight: 500;
-  font-size: clamp(22px, 3.4vh, 34px); line-height: 1.42;
+  font-size: clamp(20px, 3.1vh, 31px); line-height: 1.38;
   color: transparent;
   background: linear-gradient(178deg, #a9853f 8%, #86642e 62%, #74561f 100%);
   -webkit-background-clip: text; background-clip: text;
@@ -441,8 +453,7 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
    sentence claimed a full screen and the contrast between them was lost to
    scrolling. Tighter spacing and a descending weight keep it readable as one
    thought without touching the other closings' grammar. */
-.dx-layout-unexpected_absence { gap: 6vh; padding: 10vh 0 12vh; }
-.dx-layout-unexpected_absence .dx-close-sec { max-width: 660px; }
+/* the base layout is compact now; this only keeps the descending weight */
 .dx-layout-unexpected_absence .dx-close-sec:nth-of-type(2) .cs-text,
 .dx-layout-unexpected_absence .dx-close-sec:nth-of-type(3) .cs-text {
   font-size: clamp(19px, 2.7vh, 27px);
@@ -528,13 +539,23 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 }
 
 /* ============ Final Mirror (scroll-paced) ============ */
-.dx-finalpage { min-height: 100%; padding: 12vh 0 14vh; display: flex; flex-direction: column;
-  align-items: center; gap: 8vh; }
-.dx-finalpage .dx-mirror { display: flex; flex-direction: column; gap: 7vh; max-width: 640px; }
+/* The final mirror was the last page still on the old rhythm — 12vh padding plus
+   8vh between blocks and 7vh between mirror items, so three short lines and a
+   button ran well past the fold. Sized like the chapter closings, and centred
+   with auto margins so a longer mirror scrolls from its top rather than
+   overflowing upward out of reach. */
+.dx-finalpage { min-height: 100%; padding: 5vh 0 6vh; display: flex; flex-direction: column;
+  align-items: center; justify-content: flex-start; gap: 4vh; }
+.dx-finalpage > :first-child { margin-top: auto; }
+.dx-finalpage > :last-child { margin-bottom: auto; }
+.dx-finalpage .dx-mirror { display: flex; flex-direction: column; gap: 3.2vh; max-width: 680px; }
 .dx-finalpage .dx-mirror-item { opacity: 0; transform: translateY(16px);
   transition: opacity 1.1s ease, transform 1.1s cubic-bezier(.3,.6,.3,1); text-align: center; }
 .dx-finalpage .dx-mirror-item.in { opacity: 1; transform: translateY(0); }
-.dx-final-closing { display: flex; flex-direction: column; gap: 6vh; max-width: 620px; text-align: center; }
+.dx-final-closing { display: flex; flex-direction: column; gap: 2.2vh; max-width: 720px; text-align: center; }
+/* these are closing statements, not the big mid-story reveal: at the reveal
+   size five of them alone overran the screen and pushed the button off it */
+.dx-final-closing .dx-reveal-line { font-size: clamp(16px, 2.3vh, 23px); line-height: 1.4; }
 
 /* ============ Materialization — structured, still editorial ============ */
 /* A summary you take in, not a document you read through. Sections used to
@@ -898,4 +919,14 @@ body.dx-busy-on { cursor: progress; }
   font-family: var(--serif); font-size: clamp(17px, 2.3vh, 21px); color: #6d5320;
   margin-bottom: 12px; padding-bottom: 10px;
   border-bottom: 1px solid rgba(163, 118, 47, .2);
+}
+.dx-situation { width: min(480px, 92vw); }
+.dx-probe-why {
+  font-family: var(--sans); font-size: 12.5px; line-height: 1.55; color: #9d7f4d;
+  margin-top: 10px;
+}
+.ws-action.loading { opacity: .6; cursor: progress; }
+.ws-action-failed {
+  font-family: var(--sans); font-size: 12px; color: #b0703d;
+  margin: 6px 0 2px; text-align: center;
 }

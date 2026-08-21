@@ -367,8 +367,15 @@ def build(db: Session, session: DiscoverSession) -> dict:
         "capabilities": caps,
         "leverage": lev,
         "gaps": gp,
+        # Chapter IV is the audit, not the shop. Role recommendations and product
+        # routes belonged to a page that was trying to conclude; what follows the
+        # audit is one question, not a list of suggestions. They are still
+        # computed and persisted as material objects — the workspace's Explore
+        # action is where someone asks for them — but the page does not show them.
         "directions": dirs,
         "productRoutes": routes,
+        "showDirections": False,
+        "showProductRoutes": False,
         "cta": "Enter your Discover space →",
         "next": "DISCOVER_WORKSPACE",
     }
@@ -403,8 +410,11 @@ def build(db: Session, session: DiscoverSession) -> dict:
     # do not, ordered by the job-or-build branch if the person has picked one
     from . import insights as _insights
     payload["insights"] = _insights.top_insights(db, session, _insights.current_intent(session))
-    payload["directionQuestion"] = (None if _insights.current_intent(session)
-                                    else _insights.DIRECTION_QUESTION)
+    # the follow-up is chosen by the model from the assessed situation and shown
+    # a few seconds after the page settles — never a branch we wrote by hand
+    from . import situation as _situation
+    payload["situationProbe"] = _situation.next_question(db, session)
+    payload["probeDelayMs"] = 3000
 
     snapshot = MaterializationSnapshot(session_id=session.id, version=MATERIALIZATION_VERSION,
                                        payload=payload)

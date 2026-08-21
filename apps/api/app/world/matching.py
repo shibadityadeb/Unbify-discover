@@ -93,6 +93,14 @@ def generate_candidates(db: Session, session: DiscoverSession,
                 "why": "no supported capability evidence yet"}
 
     occs = db.query(WIOccupation).filter_by(status="active").all()
+    # The whole transitions table was being re-fetched inside the loop, once per
+    # occupation, though it never depends on the occupation. Against a distant
+    # database that was ~24 extra round trips per call and the single largest
+    # cost in generating candidates.
+    transitions_by_target: dict[str, list] = {}
+    for t in db.query(WIOccupationTransition).all():
+        if t.from_occupation_id in current_ids:
+            transitions_by_target.setdefault(t.to_occupation_id, []).append(t)
     candidates: list[dict] = []
     for occ in occs:
         occ_caps = ontology.occupation_capabilities(db, occ.id)
@@ -102,8 +110,7 @@ def generate_candidates(db: Session, session: DiscoverSession,
         # useful, whereas ranking one as a recommendation would not be
         if fit < min_fit and occ.id not in current_ids:
             continue
-        transitions_in = [t for t in db.query(WIOccupationTransition).all()
-                          if t.to_occupation_id == occ.id and t.from_occupation_id in current_ids]
+        transitions_in = transitions_by_target.get(occ.id, [])
         is_transition_target = bool(transitions_in)
         is_specialization = any(t.kind == "specialization" for t in transitions_in)
         licensing = _license_gate(db, session, occ, current_ids, is_specialization)

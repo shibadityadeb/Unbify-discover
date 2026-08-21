@@ -49,10 +49,10 @@ def _concrete_step(db: Session, session: DiscoverSession, direction: dict) -> st
     step = direction.get("firstExperiment") or ""
     if step and GENERIC_STEP not in step:
         return step
-    from .explore import direction_test
-    step = direction_test(db, session, direction).get("whatYouDo") or ""
-    if step and GENERIC_STEP not in step:
-        return step
+    # Deliberately NOT direction_test here: that calls the model and took ~13s,
+    # so "my best next move" — one line, meant to feel immediate — sat blank
+    # while a plan was generated that the person had not asked for. The written
+    # step is built from the direction's own pathway and costs nothing.
     return _written_step(direction)
 
 

@@ -127,6 +127,7 @@
     if (departed || transitioning) return;
     departed = true;
     transitioning = true;
+    window.scrollTo(0, 0);
     introPlx.forEach(({ el }) => { el.style.translate = "0px 0px"; });
     /* step 1: the system recognizes the decision */
     document.body.classList.add("pre-depart");
@@ -517,11 +518,16 @@
   });
 
   /* ---------- scroll continues the journey ---------- */
+  /* On phones the intro is a scrolling page (hero -> chapters -> what-this-is),
+     so scroll gestures there must scroll, not advance. Once a chapter overlay
+     is open the page is frozen again and the gesture resumes its meaning. */
+  const stackedFlow = window.matchMedia("(max-width: 760px), (max-height: 480px)");
   let lastAdvance = 0;
   function advance() {
     const now = Date.now();
     if (now - lastAdvance < 1800) return;
     const b = document.body.classList;
+    if (stackedFlow.matches && !departed) return;
     if (b.contains("scene4-open") || b.contains("dx-open") || transitioning || overlayOpen()) return;
     if (window.UnbifyBusy && window.UnbifyBusy.active()) return;   // a wait is already exclusive
     lastAdvance = now;
