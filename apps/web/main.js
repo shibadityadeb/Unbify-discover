@@ -556,6 +556,26 @@
   const scrollHint = document.querySelector(".scroll-hint");
   if (scrollHint) scrollHint.addEventListener("click", advance);
 
+  /* ---------- the UNBIFY family: reveal as it scrolls into view ---------- */
+  /* On desktop the strip is fixed and always on screen, so the observer fires
+     immediately and .in is a no-op; on the stacked phone flow the cards fade
+     up one by one as the reader reaches the bottom of the page. */
+  const productCards = document.querySelectorAll(".product");
+  if (productCards.length && "IntersectionObserver" in window) {
+    const pio = new IntersectionObserver(entries => {
+      entries.forEach((e, ) => {
+        if (e.isIntersecting) {
+          e.target.style.transitionDelay = (e.target.dataset.pi * 120) + "ms";
+          e.target.classList.add("in");
+          pio.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.25 });
+    productCards.forEach((card, i) => { card.dataset.pi = i; pio.observe(card); });
+  } else {
+    productCards.forEach(card => card.classList.add("in"));
+  }
+
   /* ---------- return ---------- */
   document.getElementById("chBack").addEventListener("click", () => {
     clearTimeout(cueTimer);
