@@ -995,6 +995,12 @@
       body.appendChild(wrap);
       return;
     }
+    if (d.kind === "profile_growth") {
+      renderProfileGrowth(wrap, d);
+      wrap.appendChild(backRow(body, ws));
+      body.appendChild(wrap);
+      return;
+    }
     if (d.kind === "live_map") {
       const sub = document.createElement("p");
       sub.className = "dx-support";
@@ -1186,6 +1192,101 @@
     }
     wrap.appendChild(backRow(body, ws));
     body.appendChild(wrap);
+  }
+
+  /* ---- profile growth: is what you already do gaining value? ---- */
+
+  function renderProfileGrowth(wrap, d) {
+    const ex = d.explanation || {};
+    const TRAJ_LABEL = { ACCELERATING: "Accelerating", EMERGING: "Emerging",
+                         STABLE: "Stable", AT_RISK: "At risk",
+                         INSUFFICIENT_DATA: "Insufficient data" };
+    const head = document.createElement("div");
+    head.className = "dx-traj-head dx-traj-" + esc((d.trajectory || "").toLowerCase());
+    head.innerHTML = `
+      <p class="dx-traj-kicker">Your AI trajectory</p>
+      <p class="dx-traj-verdict">${esc(TRAJ_LABEL[d.trajectory] || d.trajectory || "")}</p>
+      ${ex.trajectoryReading ? `<p class="dx-traj-read">${esc(ex.trajectoryReading)}</p>` : ""}
+      <p class="dx-traj-conf">Confidence: ${esc((d.confidence || "").toLowerCase())}
+        · ${esc(String(d.meta?.postingsAnalyzed ?? 0))} postings analyzed</p>`;
+    wrap.appendChild(head);
+
+    const sc = d.profileGrowthScore || {};
+    if (sc.breakdown) {
+      const box = document.createElement("div");
+      box.className = "dx-traj-score";
+      box.innerHTML = `<p class="ws-poss-head">Profile growth score
+          <span class="dx-intel-score">${esc(String(sc.score))}<i>/100</i></span></p>
+        <div class="ws-poss-bars">` +
+        Object.entries(sc.breakdown).map(([k, v]) => `
+          <span class="ws-bar-row"><em>${esc(k.replace(/_/g, " "))}</em>
+            <span class="ws-bar"><i class="good" style="width:${v}%"></i></span>
+            <b>${esc(String(v))}</b></span>`).join("") + `</div>
+        <p class="ws-poss-note">Fixed published weights — the model never sets this number.</p>`;
+      wrap.appendChild(box);
+    }
+
+    const qa = document.createElement("div");
+    qa.className = "dx-traj-qa";
+    [["What is becoming more valuable about you", ex.whatIsBecomingValuable],
+     ["Most exposed to automation", ex.mostExposed],
+     ["Your unusually valuable combination", ex.unusualCombination]]
+      .forEach(([label, text]) => {
+        if (!text) return;
+        qa.innerHTML += `<div class="dx-traj-q"><p class="cs-label">${esc(label)}</p>
+          <p class="dx-traj-a">${esc(text)}</p></div>`;
+      });
+    wrap.appendChild(qa);
+
+    const combos = (d.emergingCombinations || []).filter(c => c.signal !== "INSUFFICIENT_DATA");
+    if (combos.length) {
+      const cb = document.createElement("div");
+      cb.className = "dx-traj-combos";
+      cb.innerHTML = `<p class="ws-poss-head">Emerging combinations of what you already have</p>` +
+        combos.map(c => `
+          <div class="dx-traj-combo">
+            <p class="dx-traj-combo-parts">${c.combination.map(esc).join('<span class="plus">+</span>')}</p>
+            <p class="dx-traj-combo-meta">${esc(c.signal.replace(/_/g, " ").toLowerCase())}${
+              c.sharePct !== null && c.sharePct !== undefined ? ` · present in ${esc(String(c.sharePct))}% of analyzed postings` : ""}</p>
+            ${c.why ? `<p class="dx-traj-combo-why">${esc(c.why)}</p>` : ""}
+          </div>`).join("");
+      wrap.appendChild(cb);
+    }
+
+    const caps = d.capabilities || [];
+    if (caps.length) {
+      const list = document.createElement("div");
+      list.className = "dx-traj-caps";
+      list.innerHTML = `<p class="ws-poss-head">Capability by capability</p>` + caps.map(c => {
+        const g = c.growth;
+        const growthTxt = c.evidence && c.evidence.length && g && g.value !== null && g.value !== undefined
+          ? `${g.ppChange >= 0 ? "+" : ""}${g.ppChange} pp (${g.value >= 0 ? "+" : ""}${g.value}% relative)`
+          : "insufficient historical data";
+        return `<div class="dx-traj-cap">
+          <span class="dx-traj-cap-name">${esc(c.capability)}</span>
+          <span class="dx-traj-cap-sig dx-sig-${esc(c.growthSignal.toLowerCase())}">${esc(c.growthSignal.replace(/_/g, " ").toLowerCase())}</span>
+          <span class="dx-traj-cap-growth">${esc(growthTxt)}</span>
+          <span class="dx-traj-cap-lev">AI leverage: ${esc((c.aiLeverage || "").toLowerCase())}</span>
+        </div>`;
+      }).join("");
+      wrap.appendChild(list);
+    }
+
+    if ((d.skillGaps || []).length) {
+      const gp = document.createElement("div");
+      gp.className = "dx-traj-gaps";
+      gp.innerHTML = `<p class="ws-poss-head">What would close the gap</p>` +
+        d.skillGaps.map(g => `<div class="dx-mat-gap">
+          <p class="dx-gap-label">${esc(g.skill)} <span class="dx-traj-imp">${esc(g.importance.toLowerCase())}</span></p>
+          <p class="dx-gap-why">${esc(g.reason)}</p></div>`).join("");
+      wrap.appendChild(gp);
+    }
+
+    const foot = document.createElement("p");
+    foot.className = "dx-intel-updated";
+    foot.textContent = "Last updated " +
+      String(d.meta?.computedAt || "").slice(0, 16).replace("T", " ") + " UTC";
+    wrap.appendChild(foot);
   }
 
   /* ---- the opportunity radar: evidence, not certainty ---- */

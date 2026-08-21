@@ -48,7 +48,17 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 }
 .dx-support { margin-top: 14px; font-size: clamp(16px, 2.3vh, 20px); color: #6e655b; line-height: 1.55; max-width: 34em; }
 
-.dx-word { display: inline-block; opacity: 0; filter: blur(3px); transform: translateY(6px); }
+/* Safari paints background-clip:text wrong when the clipped element's
+   DESCENDANTS carry transforms or filters: every word-by-word headline
+   rendered as a pile of superimposed glyphs at the page corner. Each word
+   therefore clips its own gradient (self-transforms are safe), and the
+   parent drops its background whenever word spans are present. */
+.dx-headline:has(.dx-word) { background: none; }
+.dx-word {
+  display: inline-block; opacity: 0; filter: blur(3px); transform: translateY(6px);
+  background: linear-gradient(178deg, #a9853f 8%, #86642e 62%, #74561f 100%);
+  -webkit-background-clip: text; background-clip: text;
+}
 .dx-word.in { opacity: 1; filter: blur(0); transform: translateY(0); transition: opacity .5s ease, filter .5s ease, transform .5s ease; }
 
 /* ---------- visual choice ---------- */
@@ -999,6 +1009,37 @@ body.dx-busy-on { cursor: progress; }
 .dx-intel-updated { font-family: var(--sans); font-size: 10px; color: #a89a7d; margin-top: 6px; }
 .dx-intel-emerging { text-align: left; margin-top: 24px; }
 .dx-intel-cluster { font-family: var(--sans); font-size: 12px; color: #6e6557; margin-top: 6px; }
+
+/* ---- AI trajectory ---- */
+.dx-traj-head { text-align: center; padding: 26px 0 20px; border-bottom: 1px solid rgba(163,118,47,.2); }
+.dx-traj-kicker { font-family: var(--sans); font-size: 10px; letter-spacing: .34em; text-transform: uppercase; color: #a3762f; }
+.dx-traj-verdict { font-family: var(--serif); font-size: clamp(34px, 5vh, 46px); font-weight: 500; margin-top: 10px; color: #7a5d28; }
+.dx-traj-at_risk .dx-traj-verdict { color: #a35f2e; }
+.dx-traj-insufficient_data .dx-traj-verdict { color: #8d7f6c; }
+.dx-traj-read { font-family: var(--body-serif, serif); font-size: 15.5px; line-height: 1.7; color: #5d554a; max-width: 34em; margin: 14px auto 0; }
+.dx-traj-conf { font-family: var(--sans); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #a08a5e; margin-top: 12px; }
+.dx-traj-score { text-align: left; margin-top: 26px; max-width: 460px; }
+.dx-traj-score .ws-poss-head { display: flex; justify-content: space-between; align-items: baseline; }
+.dx-traj-qa { text-align: left; margin-top: 26px; display: flex; flex-direction: column; gap: 16px; }
+.dx-traj-a { font-family: var(--sans); font-size: 13px; line-height: 1.7; color: #5d554a; margin-top: 6px; }
+.dx-traj-combos { text-align: left; margin-top: 26px; }
+.dx-traj-combo { background: #fdf8ec; border: 1px solid rgba(163,118,47,.22); border-radius: 10px; padding: 14px 18px; margin-top: 10px; }
+.dx-traj-combo-parts { font-family: var(--serif); font-size: 17px; color: #55483a; }
+.dx-traj-combo-parts .plus { color: #bf9a55; padding: 0 10px; }
+.dx-traj-combo-meta { font-family: var(--sans); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: #7d9b62; margin-top: 6px; }
+.dx-traj-combo-why { font-family: var(--sans); font-size: 12px; line-height: 1.6; color: #6e6557; margin-top: 6px; }
+.dx-traj-caps { text-align: left; margin-top: 26px; }
+.dx-traj-cap { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; padding: 9px 2px; border-bottom: 1px solid rgba(163,118,47,.14); font-family: var(--sans); font-size: 12px; }
+.dx-traj-cap-name { color: #55483a; font-weight: 600; min-width: 160px; }
+.dx-traj-cap-sig { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+.dx-sig-structural_growth, .dx-sig-accelerating_growth, .dx-sig-emerging { color: #55663f; }
+.dx-sig-stable { color: #8a6f42; }
+.dx-sig-declining { color: #a35f2e; }
+.dx-sig-insufficient_data { color: #a89a7d; }
+.dx-traj-cap-growth { color: #6e6557; }
+.dx-traj-cap-lev { color: #a08a5e; font-size: 11px; }
+.dx-traj-gaps { text-align: left; margin-top: 26px; }
+.dx-traj-imp { font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: #a3762f; margin-left: 8px; }
 .ws-poss-meta { flex: 0 0 132px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .ws-poss-fit, .ws-poss-demand, .ws-poss-lic {
   font-family: var(--sans); font-size: 9.5px; letter-spacing: .08em; text-align: right;

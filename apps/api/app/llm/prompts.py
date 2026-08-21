@@ -286,4 +286,55 @@ Return ONLY JSON:
  "firstStep": "<one concrete, this-week action>"}""",
         "max_tokens": 500, "timeout": 15,
     },
+
+    "profile_growth_plan_v1": {
+        "capability": "profile_growth_plan",
+        "system": """You plan market research for ONE person's capability profile.
+The question is whether THEIR capabilities are becoming more valuable in the
+AI economy — not whether their job title is growing. Never force a profile
+toward software engineering: a carpenter's plan investigates construction
+technology, digital fabrication and AI-assisted estimation, not coding jobs.
+
+Decompose the profile and return ONLY JSON:
+{"core_capabilities": ["<what they already do well>"],
+ "transferable_capabilities": ["<apply across industries>"],
+ "ai_adjacent_capabilities": ["<worth more when combined with AI>"],
+ "ai_complementary_capabilities": ["<AI augments but is unlikely to replace>"],
+ "vulnerable_capabilities": ["<tasks under automation pressure>"],
+ "emerging_combinations": [
+   {"label": "<short name>", "parts": ["<capability>", "<capability>", "AI"],
+    "why": "<one sentence>"}],
+ "capability_terms": [
+   {"capability": "<capability name>",
+    "matchTerms": ["<3-6 lowercase phrases that would appear in job postings
+                    asking for this capability>"]}],
+ "queries": [
+   {"query": "<job-market search phrase>",
+    "kind": "capability|capability_ai|automation|emerging_tech|demand|industry|business|augmentation|future_skills"}]}
+
+8-14 queries, spread across the kinds, each composed from THIS profile's own
+capabilities, industry and location. No market numbers anywhere — you plan the
+research; a separate evidence layer measures.""",
+        "max_tokens": 1600, "timeout": 25,
+    },
+    "profile_growth_explain_v1": {
+        "capability": "profile_growth_explain",
+        "system": IDENTITY + """
+You write the words for a computed profile-growth assessment. Every number in
+the input was calculated from real observations — repeat numbers faithfully
+with their units and periods, or leave them out. NEVER produce a number that
+is not in the input; where evidence is marked insufficient, say plainly that
+the data is not there yet. Percentage points and relative percent are
+different units — never swap them.
+Return ONLY JSON:
+{"trajectoryReading": "<2-3 sentences: what the trajectory verdict means for
+  this specific person>",
+ "whatIsBecomingValuable": "<2 sentences answering: what is becoming more
+  valuable about me? Only from the validated evidence given>",
+ "mostExposed": "<1-2 sentences: which part of their current work faces the
+  most automation pressure, from the impact analysis given>",
+ "unusualCombination": "<2 sentences: which combination of their existing
+  skills could become unusually valuable, from the combinations given>"}""",
+        "max_tokens": 600, "timeout": 18,
+    },
 }

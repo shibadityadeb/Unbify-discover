@@ -107,6 +107,7 @@ def normalize_posting(item: dict, query: str, geography: str) -> dict | None:
     skills = _first(item, "ai_key_skills", "skills", "keySkills") or []
     if not isinstance(skills, list):
         skills = []
+    desc = _first(item, "description_text", "description")
     remote = _first(item, "ai_remote_location_derived", "remote_derived")
     if isinstance(remote, list):
         remote = bool(remote)
@@ -124,6 +125,7 @@ def normalize_posting(item: dict, query: str, geography: str) -> dict | None:
         "salary_min": smin, "salary_max": smax,
         "salary_currency": str(cur)[:10] if cur else None,
         "skills": [str(s)[:60] for s in skills[:15]],
+        "description": str(desc).lower()[:4000] if desc else None,
         "url": str(url)[:600] if url else None,
         "posted_at": posted,
         "content_hash": hashlib.sha256(content.encode()).hexdigest(),
@@ -329,6 +331,52 @@ def postings_stats(db: Session, postings: list[MarketPosting]) -> dict:
         "sampleUrls": [p.url for p in postings if p.url][:3],
         "lastRetrievedAt": last.isoformat() + "Z" if last else None,
     }
+
+
+def _posting_text(p: MarketPosting) -> str:
+    return " ".join(filter(None, [
+        p.title_norm.lower() if p.title_norm else "",
+        " ".join(s.lower() for s in (p.skills or [])),
+        p.description or "",
+    ]))
+
+
+def mentions_capability(p: MarketPosting, terms: list[str]) -> bool:
+    """A posting mentions a capability when ANY of its match terms appears in
+    the title, extracted skills, or description text."""
+    text = _posting_text(p)
+    return any(t.lower().strip() in text for t in terms if t and len(t.strip()) > 1)
+
+
+def recent_postings(db: Session, days: int = 730, limit: int = 2000) -> list[MarketPosting]:
+    since = datetime.utcnow() - timedelta(days=days)
+    return (db.query(MarketPosting)
+            .filter(MarketPosting.retrieved_at >= since)
+            .order_by(MarketPosting.retrieved_at.desc()).limit(limit).all())
+
+
+def penetration_windows(postings: list[MarketPosting], terms: list[str]) -> dict:
+    """Per rolling window: relevant postings, capability mentions, and share —
+    the raw observations a penetration-growth claim is computed from."""
+    now = datetime.utcnow()
+    spans = {"30d": 30, "90d": 90, "12m": 365}
+    out = {}
+    for name, days in spans.items():
+        cur_start = now - timedelta(days=days)
+        prev_start = now - timedelta(days=2 * days)
+        cur_total = cur_hits = prev_total = prev_hits = 0
+        for p in postings:
+            when = p.posted_at or p.retrieved_at
+            hit = mentions_capability(p, terms)
+            if when >= cur_start:
+                cur_total += 1
+                cur_hits += 1 if hit else 0
+            elif when >= prev_start:
+                prev_total += 1
+                prev_hits += 1 if hit else 0
+        out[name] = {"currentMentions": cur_hits, "currentTotal": cur_total,
+                     "previousMentions": prev_hits, "previousTotal": prev_total}
+    return out
 
 
 def emerging_clusters(db: Session, days: int = 90, min_postings: int = 5,

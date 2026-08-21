@@ -214,6 +214,8 @@ def available_actions(session: DiscoverSession) -> list[dict]:
     actions = [
         {"id": "opportunities", "label": "My AI opportunity radar",
          "hint": "Discovered from your capabilities, backed by live market evidence"},
+        {"id": "trajectory", "label": "My AI trajectory",
+         "hint": "Is what you already do gaining value in the AI economy?"},
         {"id": "position", "label": "Analyze my current professional position", "hint": "Fit, friction, leverage, optionality"},
         {"id": "explore", "label": "Explore my possibilities", "hint": "Your ranked Opportunity Map"},
         {"id": "next_move", "label": "My best next move", "hint": "One high-value step, this week"},
@@ -299,6 +301,11 @@ def action_content(db: Session, session: DiscoverSession, action_id: str) -> dic
         out = pipeline.run(db, session)
         return {"kind": "intelligence", "headline": "Your AI opportunity radar",
                 **out}
+    if action_id == "trajectory":
+        # profile growth: are THIS person's capabilities gaining value?
+        from .intelligence import profile_growth
+        out = profile_growth.analyze(db, session)
+        return {"kind": "profile_growth", "headline": "Your AI trajectory", **out}
     lives = _latest_lives(db, session, refresh=(action_id == "explore"))
     dims = session.dimensions or {}
     resonant = (session.practical_context or {}).get("resonant_life")
@@ -481,6 +488,7 @@ def _saved(db: Session, session: DiscoverSession) -> list:
 # never "the objectively correct action"
 ACTION_PRIORS = {
     "opportunities": {"value": 0.95, "effort": 0.1},
+    "trajectory": {"value": 0.9, "effort": 0.1},
     "whats_changing": {"value": 0.8, "effort": 0.15},
     "transfer": {"value": 0.75, "effort": 0.15},
     "independent_paths": {"value": 0.7, "effort": 0.2},

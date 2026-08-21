@@ -1310,9 +1310,10 @@ body.ch4 .chapter4 { translate: 0 0; }
 body.arrived .orbit-anchor, body.arrived .hero,
 body.arrived .landscape, body.arrived .haze-a, body.arrived .haze-b,
 body.arrived .chapters, body.arrived .quote, body.arrived .connector,
-body.arrived .pager, body.arrived .scroll-hint {
+body.arrived .pager, body.arrived .scroll-hint, body.arrived .products {
   visibility: hidden; transition: visibility 0s linear 2.6s;
 }
+body.depart .products, body.dx-open .products { visibility: hidden; }
 body.ch2 .chapter { visibility: hidden !important; transition: visibility 0s linear 3.2s; }
 body.ch3 .chapter2 { visibility: hidden; transition: visibility 0s linear 3.8s; }
 body.ch4 .chapter3 { visibility: hidden; transition: visibility 0s linear 4s; }
@@ -1461,4 +1462,111 @@ html { overflow-x: hidden; }
   .support { font-size: 16px; }
   .cta-wrap { width: 164px; height: 164px; }
   .chapters ol { gap: 0 18px; }
+}
+
+/* ============ the UNBIFY family ============ */
+/* Desktop: a slim strip along the bottom edge; each name opens its 2-3 line
+   card on hover or keyboard focus. The journey's scroll-to-advance stays
+   untouched — the strip advertises without asking for the scroll wheel. */
+.products {
+  /* corner block, above the side rails and parallax layers so a hover card
+     is never typed over by the aside behind it */
+  position: fixed; right: 3vw; bottom: 18px; z-index: 40;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
+}
+.products-label {
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--sans, system-ui); font-size: 9.5px; letter-spacing: .32em;
+  text-transform: uppercase; color: #a3762f;
+}
+.pl-line { display: block; width: 34px; height: 1px; background: rgba(178, 146, 94, .55); }
+.products-row { display: flex; gap: 12px; align-items: stretch; }
+.product {
+  position: relative; cursor: default; outline: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px 11px 13px;
+  background: linear-gradient(178deg, rgba(253, 248, 236, .92), rgba(249, 238, 216, .88));
+  border: 1px solid rgba(163, 118, 47, .3); border-radius: 13px;
+  box-shadow: 0 4px 18px rgba(90, 66, 24, .08);
+  transition: transform .3s cubic-bezier(.3,.6,.3,1), box-shadow .3s ease,
+              border-color .3s ease;
+}
+.product:hover, .product:focus {
+  transform: translateY(-4px);
+  border-color: rgba(163, 118, 47, .55);
+  box-shadow: 0 10px 30px rgba(90, 66, 24, .16);
+}
+.product-ico {
+  display: flex; width: 30px; height: 30px; flex: 0 0 auto;
+  align-items: center; justify-content: center;
+  color: #a3762f; background: rgba(191, 154, 85, .13);
+  border: 1px solid rgba(163, 118, 47, .28); border-radius: 9px;
+  transition: color .3s ease, background .3s ease;
+}
+.product-ico svg { width: 19px; height: 19px; }
+.product:hover .product-ico, .product:focus .product-ico {
+  color: #8d6a2b; background: rgba(191, 154, 85, .22);
+}
+.product-name {
+  font-family: var(--sans, system-ui); font-weight: 400; font-size: 12px;
+  letter-spacing: .12em; color: #8d7f6c; white-space: nowrap;
+  transition: color .25s ease;
+}
+.product-name em {
+  font-style: normal; display: block;
+  font-family: var(--serif, Georgia, serif); font-weight: 500;
+  font-size: 16.5px; letter-spacing: .02em; color: #8d6a2b; margin-top: 1px;
+}
+.product:hover .product-name, .product:focus .product-name { color: #6d5320; }
+.product-pop {
+  position: absolute; bottom: calc(100% + 14px); right: 0;
+  width: 262px; padding: 16px 18px;
+  background: #fdf6e6; border: 1px solid rgba(163, 118, 47, .3); border-radius: 12px;
+  box-shadow: 0 14px 44px rgba(90, 66, 24, .16);
+  opacity: 0; visibility: hidden; transform: translateY(6px);
+  transition: opacity .3s ease, transform .3s ease, visibility 0s linear .3s;
+  pointer-events: none;
+}
+.product:hover .product-pop, .product:focus .product-pop {
+  opacity: 1; visibility: visible; transform: translateY(0); transition-delay: 0s;
+}
+.product-for {
+  font-family: var(--sans, system-ui); font-size: 9.5px; letter-spacing: .22em;
+  text-transform: uppercase; color: #a3762f; margin-bottom: 8px;
+}
+.product-desc {
+  font-family: var(--sans, system-ui); font-size: 12px; line-height: 1.65; color: #6e6557;
+}
+
+/* Phone / stacked flow: the family is the last stop of the scroll —
+   full cards, revealed as they enter the viewport. */
+@media (max-width: 760px), (max-height: 480px) {
+  .quote { padding-bottom: 46px; }
+  .products {
+    position: static; order: 4; display: block;
+    width: 100%; max-width: 32rem; margin: 26px auto 0;
+    padding: 0 24px 140px; animation: none; opacity: 1;
+  }
+  .products { align-items: center; }
+  .products-label { justify-content: center; font-size: 10px; margin-bottom: 12px; }
+  .products-row { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+  .product {
+    flex-wrap: wrap; row-gap: 4px;
+    background: rgba(253, 246, 230, .8); border: 1px solid rgba(163, 118, 47, .25);
+    border-radius: 12px; padding: 18px 20px;
+    opacity: 0; transform: translateY(14px); box-shadow: none;
+    transition: opacity .7s ease, transform .7s cubic-bezier(.3,.6,.3,1);
+  }
+  .product.in { opacity: 1; transform: translateY(0); }
+  .product:hover, .product:focus { transform: translateY(0); box-shadow: none; }
+  .product.in:hover, .product.in:focus { transform: translateY(0); }
+  .product-name { font-size: 12px; }
+  .product-name em { font-size: 18px; }
+  .product-pop {
+    position: static; width: auto; flex-basis: 100%; padding: 0; margin-top: 8px;
+    background: none; border: 0; box-shadow: none;
+    opacity: 1; visibility: visible; transform: none; pointer-events: auto;
+    transition: none;
+  }
+  .product-desc { font-size: 12.5px; }
 }

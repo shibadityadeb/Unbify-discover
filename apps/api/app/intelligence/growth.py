@@ -34,6 +34,35 @@ def yoy_from_periods(periods: list[dict]) -> dict:
             if out else dict(INSUFFICIENT))
 
 
+def penetration_change(cur_mentions: int, cur_total: int,
+                       prev_mentions: int, prev_total: int,
+                       min_sample: int = 10) -> dict:
+    """How a capability's share of relevant postings changed between two
+    periods. Returns BOTH the percentage-point change and the relative change,
+    labeled — they are different numbers and must never be conflated. Below
+    the minimum sample in either period, the answer is insufficient."""
+    if cur_total < min_sample or prev_total < min_sample:
+        return {"state": "insufficient",
+                "note": f"Insufficient sample (needs ≥{min_sample} postings per period; "
+                        f"have {cur_total} current, {prev_total} previous)"}
+    cur_share = cur_mentions / cur_total * 100
+    prev_share = prev_mentions / prev_total * 100
+    out = {"state": "ok",
+           "currentSharePct": round(cur_share, 1),
+           "previousSharePct": round(prev_share, 1),
+           "ppChange": round(cur_share - prev_share, 1),
+           "ppChangeUnit": "percentage_points",
+           "currentMentions": cur_mentions, "currentTotal": cur_total,
+           "previousMentions": prev_mentions, "previousTotal": prev_total}
+    if prev_share > 0:
+        out["relativeChangePct"] = round((cur_share - prev_share) / prev_share * 100, 1)
+        out["relativeChangeUnit"] = "relative_percent"
+    else:
+        out["relativeChangePct"] = None
+        out["relativeNote"] = "No baseline share — relative change undefined"
+    return out
+
+
 def window_comparison(windows: dict) -> dict:
     """windows: {"30d": {...}, "90d": {...}, "12m": {...}} each with
     current/previous counts → per-window change. Surfaces structural growth
