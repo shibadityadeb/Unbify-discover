@@ -33,6 +33,19 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
     email: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    google_sub: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AuthToken(Base):
+    """Opaque bearer tokens. One row per issued token so logout/revocation is a
+    delete, and a stolen DB row still reveals only a random string."""
+    __tablename__ = "auth_tokens"
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
@@ -1029,3 +1042,54 @@ class PatternValueRelationship(Base):
     market_evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
     outcome_evidence_ids: Mapped[list] = mapped_column(JSON, default=list)
     confidence: Mapped[float] = mapped_column(Float, default=0.5)
+
+
+# ---------- opportunity intelligence: live market evidence ----------
+
+class MarketPosting(Base):
+    """One observed job/market posting, deduplicated, timestamped, and tied to
+    the query that surfaced it. Postings are raw evidence: window counts,
+    growth and clusters are all computed from these rows, never stored as
+    free-floating percentages."""
+    __tablename__ = "market_postings"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    source_id: Mapped[str] = mapped_column(String(60), index=True)
+    query: Mapped[str] = mapped_column(String(200), index=True)
+    cluster_key: Mapped[str] = mapped_column(String(120), index=True)  # normalized title cluster
+    title: Mapped[str] = mapped_column(String(300))
+    title_norm: Mapped[str] = mapped_column(String(200), index=True)
+    company: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    location: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    geography: Mapped[str] = mapped_column(String(60), default="*", index=True)
+    remote: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    salary_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    salary_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+    salary_currency: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    skills: Mapped[list] = mapped_column(JSON, default=list)
+    url: Mapped[str | None] = mapped_column(String(600), nullable=True)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
+    content_hash: Mapped[str] = mapped_column(String(64), index=True)  # dedupe
+
+
+class MarketQueryRun(Base):
+    """When a live query last ran — the cache clock for live evidence."""
+    __tablename__ = "market_query_runs"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    query: Mapped[str] = mapped_column(String(200), index=True)
+    geography: Mapped[str] = mapped_column(String(60), default="*")
+    source_id: Mapped[str] = mapped_column(String(60))
+    postings_found: Mapped[int] = mapped_column(Integer, default=0)
+    ran_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
+
+
+class DiscoveryCache(Base):
+    """Per-session recommendation cache: recomputed when the questionnaire
+    (profile hash) changes or the market evidence goes stale."""
+    __tablename__ = "discovery_cache"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    session_id: Mapped[str] = mapped_column(String(32), index=True)
+    kind: Mapped[str] = mapped_column(String(30), default="recommendations")  # profile | recommendations
+    profile_hash: Mapped[str] = mapped_column(String(64), index=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

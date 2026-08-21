@@ -147,6 +147,11 @@ def seed_ontology(db: Session) -> int:
             db.add(WIOccupationCapability(occupation_id=oid, capability_id=cap, weight=weight))
         added += 1
     for frm, to, kind, note, strength in seed.TRANSITIONS:
+        # a re-run on a partially seeded DB (an older seed grew) must not
+        # duplicate edges that already exist
+        if db.query(WIOccupationTransition).filter_by(
+                from_occupation_id=frm, to_occupation_id=to, kind=kind).count():
+            continue
         db.add(WIOccupationTransition(from_occupation_id=frm, to_occupation_id=to,
                                       kind=kind, evidence_note=note, strength=strength))
     for pid, label, industries, caps, note in seed.PROBLEMS:
@@ -162,12 +167,33 @@ def seed_ontology(db: Session) -> int:
 
 
 def seed_baseline_signals(db: Session) -> WIIngestionRun | None:
-    """Baseline labor-statistics observations → the normal ingestion path."""
+    """Baseline labor statistics plus named projection readings — all through
+    the normal ingestion path, each source guarded independently so a seed
+    file that grows re-ingests only what is missing."""
     from . import ontology_seed as seed
     from ..models import WISourceObservation as Obs
-    if db.query(Obs).filter_by(source_id="src_seed_labor_stats").count() > 0:
-        return None
+
+    last = None
+    existing = {occ for (occ,) in db.query(Obs.occupation_refs)
+                .filter_by(source_id="src_seed_labor_stats").all()
+                for occ in ([occ] if isinstance(occ, str) else occ)} \
+        if db.query(Obs).filter_by(source_id="src_seed_labor_stats").count() else set()
     records = [{"signal_type": sig, "value": {"level": val},
                 "occupation_refs": [occ], "geography": geo, "geography_level": "country"}
-               for occ, sig, val, geo in seed.BASELINE_OBSERVATIONS]
-    return ingest_source(db, "src_seed_labor_stats", records)
+               for occ, sig, val, geo in seed.BASELINE_OBSERVATIONS if occ not in existing]
+    if records:
+        last = ingest_source(db, "src_seed_labor_stats", records)
+
+    for source_id in ("src_bls_projections", "src_industry_outlook"):
+        if db.query(Obs).filter_by(source_id=source_id).count() > 0:
+            continue
+        recs = [{"signal_type": "demand_direction",
+                 "value": {"level": level, "note": note,
+                           **({"growthPct": growth} if growth is not None else {}),
+                           "horizon": horizon},
+                 "occupation_refs": [occ], "geography": "*", "geography_level": "country"}
+                for occ, level, note, growth, horizon, src in seed.PROJECTION_OBSERVATIONS
+                if src == source_id]
+        if recs:
+            last = ingest_source(db, source_id, recs)
+    return last

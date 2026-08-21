@@ -169,7 +169,9 @@ def run_sync(db: Session, actor_config_id: str, input_overrides: dict | None = N
                 f"{APIFY_BASE}/acts/{cfg.actor_id}/run-sync-get-dataset-items",
                 params={"token": token(), "timeout": budget_seconds, "clean": "true"},
                 json=actor_input)
-        if res.status_code == 200:
+        # run-sync-get-dataset-items answers 201 (Created) with the items —
+        # only accepting 200 was discarding perfectly good results
+        if res.status_code in (200, 201):
             items = res.json()
             record_run(db, source.id, success=True, records=len(items) if isinstance(items, list) else 0)
             return {"ok": True, "completed": True, "items": items if isinstance(items, list) else []}

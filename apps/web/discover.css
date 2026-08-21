@@ -780,7 +780,8 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 
 /* the probe modal */
 .dx-probe-back {
-  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  /* above #dx (z 110): the experience overlay must not swallow its own modals */
+  position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center;
   background: rgba(60, 44, 18, .32); backdrop-filter: blur(3px); padding: 24px;
 }
 .dx-probe {
@@ -796,6 +797,59 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 .dx-probe-opts { display: flex; flex-direction: column; gap: 10px; margin: 22px 0 8px; }
 .dx-probe-done { font-family: var(--sans); font-size: 13.5px; line-height: 1.6; color: #8a6c3c; margin: 14px 0 18px; }
 @media (prefers-reduced-motion: reduce) { .dx-probe-back { backdrop-filter: none; } }
+
+/* ---------------- sign-in: the audit gets an owner ----------------
+   The blocking variant greys the whole page out and offers no way past —
+   the audit underneath stays visible enough to be worth keeping, unreadable
+   enough that signing in is the only way to use it. */
+.dx-auth-back {
+  /* above #dx (z 110), which itself sits above the intro page */
+  position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center;
+  background: rgba(60, 44, 18, .38); backdrop-filter: blur(4px) grayscale(.7); padding: 24px;
+}
+.dx-auth-back.blocking { background: rgba(52, 38, 15, .5); }
+.dx-auth {
+  position: relative;
+  background: #fdf6e6; border: 1px solid rgba(163, 118, 47, .3); border-radius: 14px;
+  padding: 30px 32px 26px; width: min(400px, 92vw); text-align: center;
+  box-shadow: 0 18px 60px rgba(90, 66, 24, .22);
+}
+.dx-auth-x {
+  position: absolute; top: 10px; right: 14px; font-size: 22px; line-height: 1;
+  color: #b08a3d; background: none; border: 0; cursor: pointer; padding: 4px;
+}
+.dx-auth-kicker {
+  font-family: var(--serif); font-size: 22px; color: #7a5d28; font-weight: 500;
+}
+.dx-auth-sub {
+  font-family: var(--sans); font-size: 13px; line-height: 1.6; color: #8a6c3c;
+  margin: 10px 0 18px;
+}
+.dx-auth-tabs {
+  display: flex; gap: 6px; justify-content: center; margin-bottom: 16px;
+}
+.dx-auth-tab {
+  font-family: var(--sans); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: #a08a5e; background: none; border: 0; border-bottom: 1.5px solid transparent;
+  padding: 6px 10px; cursor: pointer;
+}
+.dx-auth-tab.on { color: #7a5d28; border-bottom-color: #bf9a55; }
+.dx-auth-form { display: flex; flex-direction: column; gap: 10px; }
+.dx-auth-in {
+  font-family: var(--sans); font-size: 14px; color: #55483a;
+  background: #fffdf6; border: 1px solid rgba(163, 118, 47, .35); border-radius: 8px;
+  padding: 11px 13px; outline: none;
+}
+.dx-auth-in:focus { border-color: #bf9a55; box-shadow: 0 0 0 3px rgba(191, 154, 85, .14); }
+.dx-auth-go { margin-top: 4px; }
+.dx-auth-err {
+  font-family: var(--sans); font-size: 12.5px; color: #b0703d; margin-top: 12px; line-height: 1.5;
+}
+.dx-auth-or {
+  font-family: var(--sans); font-size: 10px; letter-spacing: .3em; text-transform: uppercase;
+  color: #b3a075; margin: 16px 0 10px;
+}
+.dx-auth-gslot { display: flex; justify-content: center; }
 
 /* ============ the blocking wait ============
    Used only where the next thing genuinely cannot start yet — chapter entry
@@ -896,6 +950,55 @@ body.dx-busy-on { cursor: progress; }
 }
 .ws-poss-ai { font-family: var(--sans); font-size: 12px; line-height: 1.5; color: #8a6f42; margin-top: 3px; }
 .ws-poss-have { font-family: var(--sans); font-size: 11px; color: #a3762f; margin-top: 3px; }
+.ws-poss-missing { font-family: var(--sans); font-size: 11px; color: #8d7f6c; margin-top: 2px; }
+.ws-poss-bars { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; max-width: 340px; }
+.ws-bar-row { display: flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 10px; color: #8a6f42; }
+.ws-bar-row em { font-style: normal; width: 92px; text-align: right; letter-spacing: .04em; }
+.ws-bar-row b { font-weight: 500; width: 32px; }
+.ws-bar { flex: 1; height: 5px; background: rgba(163, 118, 47, .14); border-radius: 3px; overflow: hidden; }
+.ws-bar i { display: block; height: 100%; border-radius: 3px; background: #b98a3e; }
+.ws-bar i.good { background: #7d9b62; }
+.ws-bar i.risk { background: #c07a45; }
+.ws-poss-cites { font-family: var(--sans); font-size: 10.5px; line-height: 1.6; color: #97876e; margin-top: 7px; }
+.ws-poss-cites a { color: #a3762f; }
+
+/* ---- opportunity radar ---- */
+.dx-intel-profile { text-align: left; margin-bottom: 22px; }
+.dx-intel-caps { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.dx-intel-cap {
+  font-family: var(--sans); font-size: 11px; color: #7a5d28;
+  background: rgba(191, 154, 85, .12); border: 1px solid rgba(163, 118, 47, .25);
+  border-radius: 20px; padding: 4px 11px;
+}
+.dx-intel-ai { font-family: var(--sans); font-size: 11.5px; line-height: 1.6; color: #8a6f42; margin-top: 10px; }
+.dx-intel-list { display: flex; flex-direction: column; gap: 18px; text-align: left; }
+.dx-intel-card {
+  background: #fdf8ec; border: 1px solid rgba(163, 118, 47, .22); border-radius: 12px;
+  padding: 20px 22px;
+}
+.dx-intel-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.dx-intel-type {
+  font-family: var(--sans); font-size: 9px; letter-spacing: .22em;
+  padding: 3px 8px; border-radius: 4px; color: #7a5d28;
+  background: rgba(191, 154, 85, .16);
+}
+.dx-intel-type-business { background: rgba(125, 155, 98, .18); color: #55663f; }
+.dx-intel-type-skill { background: rgba(151, 134, 110, .16); color: #6e6557; }
+.dx-intel-type-transition { background: rgba(192, 122, 69, .14); color: #8a5a2e; }
+.dx-intel-title { font-family: var(--serif); font-size: 20px; color: #55483a; font-weight: 500; flex: 1; }
+.dx-intel-score { font-family: var(--serif); font-size: 22px; color: #8d6a2b; }
+.dx-intel-score i { font-style: normal; font-family: var(--sans); font-size: 10px; color: #a08a5e; }
+.dx-intel-why { font-family: var(--sans); font-size: 12.5px; line-height: 1.6; color: #6e6557; margin-top: 8px; }
+.dx-intel-demand { font-family: var(--sans); font-size: 12px; color: #7a5d28; margin-top: 10px; }
+.dx-intel-exp { font-family: var(--sans); font-size: 12px; line-height: 1.65; color: #6e6557; margin-top: 8px; }
+.dx-intel-exp b { color: #55483a; font-weight: 600; }
+.dx-intel-state {
+  font-family: var(--sans); font-size: 9.5px; letter-spacing: .2em; text-transform: uppercase;
+  color: #a08a5e; margin-top: 10px;
+}
+.dx-intel-updated { font-family: var(--sans); font-size: 10px; color: #a89a7d; margin-top: 6px; }
+.dx-intel-emerging { text-align: left; margin-top: 24px; }
+.dx-intel-cluster { font-family: var(--sans); font-size: 12px; color: #6e6557; margin-top: 6px; }
 .ws-poss-meta { flex: 0 0 132px; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .ws-poss-fit, .ws-poss-demand, .ws-poss-lic {
   font-family: var(--sans); font-size: 9.5px; letter-spacing: .08em; text-align: right;

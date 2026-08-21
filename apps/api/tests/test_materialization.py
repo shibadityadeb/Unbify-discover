@@ -219,6 +219,8 @@ def test_no_products_without_evidence(client):
 
 def test_workspace_still_reachable_and_value_not_gated(client):
     sid, final, mat = run_to_materialization(client, ELECTRICIAN)
+    from tests.ownership import claim
+    claim(client, sid)
     data = client.post(f"/v1/discover/sessions/{sid}/advance",
                        json={"to": "DISCOVER_WORKSPACE"}).json()
     assert data["state"] == "DISCOVER_WORKSPACE"
@@ -231,6 +233,8 @@ def test_workspace_still_reachable_and_value_not_gated(client):
 
 def test_questions_explain_what_they_would_change(client):
     sid, final, mat = run_to_materialization(client, ELECTRICIAN)
+    from tests.ownership import claim
+    claim(client, sid)
     client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "DISCOVER_WORKSPACE"})
     ws = client.get(f"/v1/workspace/{sid}").json()
     invite = ws["questions"]["invite"]
@@ -241,6 +245,8 @@ def test_questions_explain_what_they_would_change(client):
 
 def test_actions_are_ranked_with_a_most_useful(client):
     sid, final, mat = run_to_materialization(client, ELECTRICIAN)
+    from tests.ownership import claim
+    claim(client, sid)
     client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": "DISCOVER_WORKSPACE"})
     ws = client.get(f"/v1/workspace/{sid}").json()
     actions = ws["actions"]

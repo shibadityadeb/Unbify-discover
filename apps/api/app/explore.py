@@ -26,28 +26,32 @@ MIN_DEMAND_SOURCES = 2
 MIN_DEMAND_CONFIDENCE = 0.40
 
 
-def ai_posture(ai: dict) -> dict:
+def ai_posture(ai: dict, label: str | None = None) -> dict:
     """Where a field sits against automation — the part of "in the age of AI"
-    we can answer from data rather than atmosphere."""
+    we can answer from data rather than atmosphere. With a label, the reading
+    names the field and carries its own numbers, so ten rows never share one
+    interchangeable sentence."""
     exposure = float(ai.get("automationExposure") or 0)
     augment = float(ai.get("augmentationPotential") or 0)
     edge = augment - exposure
+    name = label or "this work"
+    figures = f"automation exposure {exposure:.0%}, AI leverage {augment:.0%}"
     if exposure >= 0.6 and edge <= 0:
-        posture, line = ("exposed",
-                         "Machines are getting good at the core of this. The durable "
-                         "income is in the parts that stay human, or in running the tools.")
+        posture = "exposed"
+        line = (f"Machines are getting good at the core of {name} ({figures}). The durable "
+                "income is in the parts that stay human, or in running the tools.")
     elif edge >= 0.2:
-        posture, line = ("amplified",
-                         "Machines are weak at the core and strong at the admin around it. "
-                         "Same craft, more of it per week — that gap is the money.")
+        posture = "amplified"
+        line = (f"AI multiplies {name} rather than replacing it ({figures}) — "
+                "same craft, more of it per week.")
     elif exposure <= 0.25:
-        posture, line = ("insulated",
-                         "Tools move this slowly. Growth comes from being good and from "
-                         "reaching more people, not from automating.")
+        posture = "insulated"
+        line = (f"Tools move {name} slowly ({figures}). Growth comes from being good "
+                "and reaching more people, not from automating.")
     else:
-        posture, line = ("mixed",
-                         "Parts of this will be automated and parts will not, and which "
-                         "half you sit in is a choice you still get to make.")
+        posture = "mixed"
+        line = (f"Parts of {name} will be automated and parts will not ({figures}) — "
+                "which half you sit in is a choice you still get to make.")
     return {"posture": posture, "reading": line,
             "automationExposure": round(exposure, 2),
             "augmentationPotential": round(augment, 2),
@@ -71,11 +75,16 @@ def _demand_state(market: dict) -> dict:
 
 def _score(c: dict) -> float:
     """Ranked on what is knowable: fit first, then how the work sits against AI,
-    then whether it is a documented step from where they already are."""
+    then whether it is a documented step from where they already are — and,
+    only where multiple named sources actually back it, where demand is going."""
     ai = ai_posture(c.get("ai") or {})
     score = c.get("capabilityFit", 0) * 2.0
     score += ai["aiEdge"] * 0.8
     score -= max(0.0, ai["automationExposure"] - 0.5) * 1.2
+    market = c.get("market") or {}
+    if (market.get("demand") is not None
+            and float(market.get("confidence") or 0) >= MIN_DEMAND_CONFIDENCE):
+        score += (float(market["demand"]) - 0.45) * 0.9
     if c.get("isCurrentField"):
         score += 0.35
     if c.get("isKnownTransition"):
@@ -106,7 +115,12 @@ def possibilities(db: Session, session: DiscoverSession) -> dict:
         if key in seen or c.get("occupationId") in {i["occupationId"] for i in items}:
             continue                      # one row per occupation, best pathway wins
         seen.add(key)
-        ai = ai_posture(c.get("ai") or {})
+        ai = ai_posture(c.get("ai") or {}, c.get("label"))
+        demand = _demand_state(c.get("market") or {})
+        if demand["status"] == "known" and c.get("occupationId"):
+            from .world import signals as wsignals
+            sig = wsignals.signal_for(db, c["occupationId"], "demand_direction")
+            demand["evidence"] = wsignals.demand_evidence(db, sig)
         items.append({
             "occupationId": c.get("occupationId"),
             "label": c.get("label"),
@@ -115,7 +129,7 @@ def possibilities(db: Session, session: DiscoverSession) -> dict:
             "youAlreadyHave": [t.replace("_", " ") for t in (c.get("transfers") or [])][:3],
             "missing": [m.replace("_", " ") for m in (c.get("missing") or [])][:3],
             "ai": ai,
-            "demand": _demand_state(c.get("market") or {}),
+            "demand": demand,
             "selfEmployed": round(float(c.get("selfEmployment") or 0), 2),
             "licensed": bool((c.get("licensing") or {}).get("required")),
             "isStepFromHere": bool(c.get("isKnownTransition")) or bool(c.get("isCurrentField")),
@@ -130,7 +144,10 @@ def possibilities(db: Session, session: DiscoverSession) -> dict:
     return {
         "status": "ok",
         "items": items,
-        "rankedBy": "how well it fits what you can already do, and how the work sits against AI",
+        "rankedBy": ("fit to what you can already do, how the work sits against AI, "
+                     "and — where multiple named sources back it — where demand is heading"
+                     if known_demand else
+                     "how well it fits what you can already do, and how the work sits against AI"),
         "demandCoverage": {"known": known_demand, "total": len(items)},
         "honesty": (
             "Ranked on fit and AI posture — not on which fields are rising. "

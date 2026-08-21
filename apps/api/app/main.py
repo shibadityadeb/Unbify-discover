@@ -68,6 +68,17 @@ app.include_router(v1_router)
 # dev convenience: schema + seeds (production uses Alembic migrations)
 if not settings.is_production:
     Base.metadata.create_all(engine)
+    # create_all never ALTERs: a users table from before accounts existed would
+    # be missing the auth columns and every login would 500. Adding a column is
+    # the one migration sqlite and postgres both do in place.
+    from sqlalchemy import inspect as sa_inspect
+    _existing = {c["name"] for c in sa_inspect(engine).get_columns("users")}
+    _wanted = {"name": "VARCHAR(120)", "password_hash": "VARCHAR(256)",
+               "google_sub": "VARCHAR(64)", "last_login_at": "TIMESTAMP"}
+    with engine.begin() as conn:
+        for col, ddl in _wanted.items():
+            if col not in _existing:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {col} {ddl}"))
     with SessionLocal() as db:
         n = seed_opportunities(db)
         from .figure_kb import seed_figures

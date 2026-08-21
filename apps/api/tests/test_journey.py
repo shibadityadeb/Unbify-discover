@@ -37,6 +37,9 @@ def test_full_journey(client):
             data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": it["next"]}).json()
             continue
         if it["type"] in ("story_close", "materialization"):
+            if it["type"] == "materialization":
+                from tests.ownership import claim
+                claim(client, sid)
             data = client.post(f"/v1/discover/sessions/{sid}/advance", json={"to": it["next"]}).json()
             continue
         resp = drive_response(it)

@@ -989,6 +989,12 @@
     h.textContent = d.headline;
     wrap.appendChild(h);
 
+    if (d.kind === "intelligence") {
+      renderIntelligence(wrap, d);
+      wrap.appendChild(backRow(body, ws));
+      body.appendChild(wrap);
+      return;
+    }
     if (d.kind === "live_map") {
       const sub = document.createElement("p");
       sub.className = "dx-support";
@@ -1064,6 +1070,16 @@
           const r = document.createElement("div");
           r.className = "ws-poss";
           const demandKnown = x.demand && x.demand.status === "known";
+          const cites = demandKnown ? ((x.demand.evidence || {}).citations || []) : [];
+          const growth = cites.map(c => c.growthPct).filter(g => typeof g === "number");
+          const demandLabel = demandKnown
+            ? x.demand.label + (growth.length ? ` · +${Math.max(...growth)}% projected` : "")
+            : "demand unknown";
+          const sources = demandKnown ? ((x.demand.evidence || {}).sources || []) : [];
+          const bar = (label, v, cls) => `
+            <span class="ws-bar-row"><em>${label}</em>
+              <span class="ws-bar"><i class="${cls}" style="width:${Math.round(v * 100)}%"></i></span>
+              <b>${Math.round(v * 100)}%</b></span>`;
           r.innerHTML = `
             <span class="ws-poss-n">${i + 1}</span>
             <div class="ws-poss-main">
@@ -1071,11 +1087,20 @@
               <p class="ws-poss-ai">${esc(x.ai ? x.ai.reading : "")}</p>
               ${(x.youAlreadyHave || []).length
                 ? `<p class="ws-poss-have">You already have: ${esc(x.youAlreadyHave.join(", "))}</p>` : ""}
+              ${(x.missing || []).length
+                ? `<p class="ws-poss-missing">The gap: ${esc(x.missing.join(", "))}</p>` : ""}
+              <div class="ws-poss-bars">
+                ${x.ai ? bar("AI leverage", x.ai.augmentationPotential, "good") : ""}
+                ${x.ai ? bar("automation risk", x.ai.automationExposure, "risk") : ""}
+                ${demandKnown && typeof x.demand.value === "number" ? bar("demand", x.demand.value, "good") : ""}
+              </div>
+              ${cites.length ? `<p class="ws-poss-cites">${cites.map(c =>
+                  esc(c.note + (c.horizon ? ` (${c.horizon})` : "")) + " — " + esc(c.source)
+                ).join("<br>")}</p>` : ""}
             </div>
             <div class="ws-poss-meta">
               <span class="ws-poss-fit">${esc(x.fitLabel || "")}</span>
-              <span class="ws-poss-demand ${demandKnown ? "known" : "unknown"}">${
-                esc(demandKnown ? x.demand.label : "demand unknown")}</span>
+              <span class="ws-poss-demand ${demandKnown ? "known" : "unknown"}">${esc(demandLabel)}</span>
               ${x.licensed ? `<span class="ws-poss-lic">licence needed</span>` : ""}
             </div>`;
           more.appendChild(r);
@@ -1161,6 +1186,97 @@
     }
     wrap.appendChild(backRow(body, ws));
     body.appendChild(wrap);
+  }
+
+  /* ---- the opportunity radar: evidence, not certainty ---- */
+
+  function renderIntelligence(wrap, d) {
+    const bar = (label, v, cls) => `
+      <span class="ws-bar-row"><em>${esc(label)}</em>
+        <span class="ws-bar"><i class="${cls}" style="width:${Math.round((v || 0) * 100)}%"></i></span>
+        <b>${Math.round((v || 0) * 100)}%</b></span>`;
+
+    const prof = d.profile || {};
+    const caps = (prof.capabilities || []).slice(0, 10);
+    if (caps.length) {
+      const p = document.createElement("div");
+      p.className = "dx-intel-profile";
+      p.innerHTML = `<p class="ws-poss-head">Your current capabilities</p>
+        <p class="dx-intel-caps">${caps.map(c => `<span class="dx-intel-cap">${esc(c.name)}</span>`).join("")}</p>`;
+      const ai = prof.aiOnYourWork || {};
+      const aiBits = [
+        (ai.augments || []).length ? `AI amplifies: ${esc(ai.augments.slice(0, 3).join(", "))}` : "",
+        (ai.automates || []).length ? `AI can take over: ${esc(ai.automates.slice(0, 3).join(", "))}` : "",
+        (ai.humanEssential || []).length ? `Stays human: ${esc(ai.humanEssential.slice(0, 3).join(", "))}` : "",
+      ].filter(Boolean);
+      if (aiBits.length) p.innerHTML += `<p class="dx-intel-ai">${aiBits.join(" · ")}</p>`;
+      wrap.appendChild(p);
+    }
+
+    const list = document.createElement("div");
+    list.className = "dx-intel-list";
+    (d.recommendations || []).forEach(r => {
+      const card = document.createElement("div");
+      card.className = "dx-intel-card";
+      const so = r.skillOverlap || {};
+      const im = r.impact || {};
+      const dm = r.demand || {};
+      const ex = r.explanation || {};
+      const windows = dm.windows || {};
+      const growthBits = Object.entries(windows)
+        .filter(([, w]) => w && w.state === "ok")
+        .map(([name, w]) => `${name}: ${w.pct >= 0 ? "+" : ""}${w.pct}%`);
+      const evidence = (r.evidence || []);
+      card.innerHTML = `
+        <div class="dx-intel-top">
+          <span class="dx-intel-type dx-intel-type-${esc(r.type)}">${esc((r.type || "").toUpperCase())}</span>
+          <h3 class="dx-intel-title">${esc(r.title)}</h3>
+          <span class="dx-intel-score">${esc(String(r.score))}<i>/100 fit</i></span>
+        </div>
+        ${r.whyFromProfile ? `<p class="dx-intel-why">${esc(r.whyFromProfile)}</p>` : ""}
+        <div class="ws-poss-bars">
+          ${bar("skill overlap", so.overall, "good")}
+          ${bar("AI leverage", im.aiLeverage, "good")}
+          ${bar("automation risk", im.automationRisk, "risk")}
+          ${bar("human advantage", im.humanAdvantage, "good")}
+        </div>
+        <p class="dx-intel-demand">
+          Demand: <b>${esc(dm.direction || "unknown")}</b>
+          ${dm.livePostings ? ` · ${esc(String(dm.livePostings))} live postings` : ""}
+          ${growthBits.length ? ` · ${esc(growthBits.join(" · "))}` : " · growth: insufficient historical data"}
+          ${r.salary && r.salary.median ? ` · median ${esc(String(r.salary.median))} ${esc(r.salary.currency || "")}` : ""}
+        </p>
+        ${so.have && so.have.length ? `<p class="ws-poss-have">You already have: ${esc(so.have.concat(so.transferable || []).slice(0, 4).join(", "))}</p>` : ""}
+        ${so.largestGap ? `<p class="ws-poss-missing">Largest gap: ${esc(so.largestGap)}</p>` : ""}
+        ${ex.whyFitsYou ? `<p class="dx-intel-exp"><b>Why this fits you.</b> ${esc(ex.whyFitsYou)}</p>` : ""}
+        ${ex.whatToLearn ? `<p class="dx-intel-exp"><b>What you'd learn.</b> ${esc(ex.whatToLearn)}</p>` : ""}
+        ${ex.whyMarketMoves ? `<p class="dx-intel-exp"><b>Why the market is moving.</b> ${esc(ex.whyMarketMoves)}</p>` : ""}
+        ${ex.firstStep ? `<p class="dx-intel-exp"><b>First step.</b> ${esc(ex.firstStep)}</p>` : ""}
+        <p class="dx-intel-state">${esc((r.evidenceState || "").replace(/_/g, " ").toLowerCase())}</p>
+        ${evidence.length ? `<div class="ws-poss-cites">${evidence.map(e =>
+            `${esc(e.source)}${e.value !== undefined && e.value !== null ? " — " + esc(String(e.value)) : ""}${e.period ? " (" + esc(e.period) + ")" : ""}${e.url ? ` · <a href="${esc(e.url)}" target="_blank" rel="noopener">source</a>` : ""}`
+          ).join("<br>")}</div>` : `<p class="ws-poss-cites">Evidence insufficient — no market claim made.</p>`}
+        ${dm.lastUpdated ? `<p class="dx-intel-updated">Last updated ${esc(String(dm.lastUpdated).slice(0, 16).replace("T", " "))} UTC</p>` : ""}`;
+      list.appendChild(card);
+    });
+    wrap.appendChild(list);
+
+    if ((d.emergingClusters || []).length) {
+      const em = document.createElement("div");
+      em.className = "dx-intel-emerging";
+      em.innerHTML = `<p class="ws-poss-head">Emerging in the live market</p>` +
+        d.emergingClusters.slice(0, 5).map(c =>
+          `<p class="dx-intel-cluster">${esc(c.canonicalTitle)} — ${esc(String(c.postings))} postings, ${esc(String(c.companies))} companies</p>`).join("");
+      wrap.appendChild(em);
+    }
+    const meta = d.meta || {};
+    const note = document.createElement("p");
+    note.className = "ws-poss-honesty";
+    const live = meta.liveMarket || {};
+    note.textContent = (live.enabled
+      ? "Ranked by a fixed, published formula over your skill overlap and the market evidence above."
+      : `Live market signals unavailable (${live.why || "disabled"}) — showing capability fit and official readings only.`);
+    wrap.appendChild(note);
   }
 
   function showQuestions(body, ws) {
@@ -1568,6 +1684,224 @@
     }, { once: true });
   }
 
+  /* ---------------- accounts: the audit belongs to someone ----------------
+
+     The journey is free and anonymous. The moment the audit appears is the
+     moment it becomes worth keeping — so that is where a name attaches. The
+     page renders behind a veil and nothing is usable until sign-in succeeds;
+     an account from a previous visit claims silently and never sees the veil. */
+
+  const AUTH_KEY = "unbify-auth";
+
+  function authState() {
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
+    catch (e) { return null; }
+  }
+  function setAuthState(token, user) {
+    try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch (e) { /* private mode */ }
+  }
+  function clearAuthState() {
+    try { localStorage.removeItem(AUTH_KEY); } catch (e) { /* private mode */ }
+  }
+
+  async function authApi(path, body, method) {
+    const auth = authState();
+    const res = await fetch("/v1" + path, {
+      method: method || (body === undefined ? "GET" : "POST"),
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth && auth.token ? { "Authorization": "Bearer " + auth.token } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* non-json error body */ }
+    if (!res.ok) {
+      const err = new Error((data && data.detail) || ("auth " + res.status));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  /* ---- Google sign-in: verified server-side, rendered only when configured ---- */
+  let authConfig = null, gsiLoading = null, googleHandler = null;
+
+  async function getAuthConfig() {
+    if (authConfig) return authConfig;
+    try { authConfig = await authApi("/auth/config"); }
+    catch (e) { authConfig = {}; }
+    return authConfig;
+  }
+
+  function loadGsi() {
+    if (gsiLoading) return gsiLoading;
+    gsiLoading = new Promise(resolve => {
+      const s = document.createElement("script");
+      s.src = "https://accounts.google.com/gsi/client";
+      s.async = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    });
+    return gsiLoading;
+  }
+
+  async function mountGoogleButton(container, onCredential) {
+    const cfg = await getAuthConfig();
+    if (!cfg.googleClientId) { container.remove(); return; }
+    const ok = await loadGsi();
+    if (!ok || !window.google?.accounts?.id) { container.remove(); return; }
+    googleHandler = onCredential;
+    window.google.accounts.id.initialize({
+      client_id: cfg.googleClientId,
+      callback: resp => { if (googleHandler) googleHandler(resp.credential); },
+    });
+    window.google.accounts.id.renderButton(
+      container.querySelector(".dx-auth-gslot"),
+      { theme: "outline", size: "large", text: "continue_with", width: 280 });
+  }
+
+  /* ---- the modal itself ---- */
+
+  function openAuthModal(opts) {
+    const { blocking = false, mode: startMode = "signup",
+            title, sub, onAuthed } = opts || {};
+    if (document.querySelector(".dx-auth-back")) return;
+    const back = document.createElement("div");
+    back.className = "dx-auth-back" + (blocking ? " blocking" : "");
+    const box = document.createElement("div");
+    box.className = "dx-auth";
+    back.appendChild(box);
+    document.body.appendChild(back);
+    let mode = startMode;
+
+    const close = () => { googleHandler = null; back.remove(); };
+    if (!blocking) back.addEventListener("click", e => { if (e.target === back) close(); });
+
+    const finish = async (token, user) => {
+      setAuthState(token, user);
+      try { await onAuthed?.(user, { notice, close }); }
+      catch (e) { notice(e.message || "Something went wrong. Try again."); return; }
+    };
+
+    let noticeEl;
+    const notice = msg => { if (noticeEl) { noticeEl.textContent = msg; noticeEl.hidden = !msg; } };
+
+    const paint = () => {
+      const signup = mode === "signup";
+      box.innerHTML = `
+        ${blocking ? "" : `<button class="dx-auth-x" aria-label="Close">×</button>`}
+        <p class="dx-auth-kicker">${esc(title || "Keep your audit")}</p>
+        <p class="dx-auth-sub">${esc(sub || "The journey was free. The audit is yours — sign in so it stays yours, under your name.")}</p>
+        <div class="dx-auth-tabs">
+          <button class="dx-auth-tab ${signup ? "on" : ""}" data-m="signup">Create account</button>
+          <button class="dx-auth-tab ${signup ? "" : "on"}" data-m="login">Sign in</button>
+        </div>
+        <form class="dx-auth-form">
+          ${signup ? `<input class="dx-auth-in" name="name" type="text" placeholder="Your name" autocomplete="name" required maxlength="120">` : ""}
+          <input class="dx-auth-in" name="email" type="email" placeholder="Email" autocomplete="email" required maxlength="320">
+          <input class="dx-auth-in" name="password" type="password" placeholder="${signup ? "Password (8+ characters)" : "Password"}" autocomplete="${signup ? "new-password" : "current-password"}" required minlength="${signup ? 8 : 1}" maxlength="200">
+          <button class="dx-commit ready dx-auth-go" type="submit">${signup ? "Create my account" : "Sign in"}</button>
+        </form>
+        <p class="dx-auth-err" hidden></p>
+        <div class="dx-auth-google"><p class="dx-auth-or">or</p><div class="dx-auth-gslot"></div></div>`;
+      noticeEl = box.querySelector(".dx-auth-err");
+      box.querySelector(".dx-auth-x")?.addEventListener("click", close);
+      box.querySelectorAll(".dx-auth-tab").forEach(t =>
+        t.addEventListener("click", () => { mode = t.dataset.m; paint(); }));
+      box.querySelector(".dx-auth-form").addEventListener("submit", async e => {
+        e.preventDefault();
+        const f = e.target;
+        const go = f.querySelector(".dx-auth-go");
+        go.disabled = true; go.textContent = "One moment…";
+        try {
+          const out = signup
+            ? await authApi("/auth/signup", { name: f.name.value.trim(), email: f.email.value.trim(), password: f.password.value })
+            : await authApi("/auth/login", { email: f.email.value.trim(), password: f.password.value });
+          await finish(out.token, out.user);
+        } catch (err) {
+          notice(err.message || "That didn't work. Try again.");
+          go.disabled = false; go.textContent = signup ? "Create my account" : "Sign in";
+        }
+      });
+      mountGoogleButton(box.querySelector(".dx-auth-google"), async credential => {
+        try {
+          const out = await authApi("/auth/google", { credential });
+          await finish(out.token, out.user);
+        } catch (err) { notice(err.message || "Google sign-in didn't work."); }
+      });
+    };
+    paint();
+    return { close, notice };
+  }
+
+  /* ---- gate: the materialized audit stays veiled until it has an owner ---- */
+
+  async function claimCurrent() {
+    await authApi("/auth/claim", { sessionId });
+  }
+
+  function requireOwnership() {
+    const auth = authState();
+    const gateOnAuthed = async (user, ui) => {
+      try { await claimCurrent(); }
+      catch (e) {
+        if (e.status === 409) { ui?.notice(e.message); return; }
+        throw e;
+      }
+      ui?.close();
+    };
+    if (!auth) { openAuthModal({ blocking: true, onAuthed: gateOnAuthed }); return; }
+    claimCurrent().catch(e => {
+      if (e.status === 401) clearAuthState();
+      openAuthModal({ blocking: true, onAuthed: gateOnAuthed });
+    });
+  }
+
+  /* ---- homepage: "Already have an audit?" ---- */
+
+  async function openAuditPage() {
+    const me = await authApi("/auth/me");
+    if (!me.auditSessionId) { const e = new Error("You don't have an audit yet — the journey comes first, and it's free."); e.code = "no_audit"; throw e; }
+    sessionId = me.auditSessionId;
+    ensureDom();
+    document.body.classList.add("dx-open");
+    /* someone already in their workspace resumes there — the audit page's
+       "enter" transition only exists once, and replaying it would 409 */
+    const state = await api(`/sessions/${sessionId}`, undefined, { method: "GET" });
+    if (state.state === "DISCOVER_WORKSPACE") {
+      const data = await api("/sessions", { sessionId });
+      clearStage();
+      handlePayload(data);
+      return;
+    }
+    const data = await api(`/sessions/${sessionId}/materialization`, undefined, { method: "GET" });
+    clearStage();
+    handlePayload({ chapter: "TRANSFORMATION", state: "MATERIALIZATION", interaction: data });
+  }
+
+  function openAuditFlow() {
+    const attempt = async (user, ui) => {
+      await withBusy("Fetching your audit…", () => openAuditPage());
+      ui?.close();
+    };
+    if (authState()) {
+      attempt().catch(e => {
+        if (e.status === 401) { clearAuthState(); openAuditFlow(); return; }
+        openAuthModal({ mode: "login", title: "Your audit",
+                        sub: e.code === "no_audit" ? e.message : "Sign in to open the audit you already made.",
+                        onAuthed: attempt });
+      });
+      return;
+    }
+    openAuthModal({ mode: "login", title: "Your audit",
+                    sub: "Sign in to open the audit you already made.",
+                    onAuthed: attempt });
+  }
+
+  document.getElementById("haveAuditBtn")?.addEventListener("click", openAuditFlow);
+
   /* ---- Materialization: the story becomes objects you can act on ---- */
 
   async function objectStatus(kind, key, status, reason) {
@@ -1655,8 +1989,13 @@
   function scheduleProbe(it) {
     clearTimeout(probeTimer);
     if (!it.situationProbe) return;
-    probeTimer = setTimeout(() => openProbeModal(it.situationProbe),
-                            typeof it.probeDelayMs === "number" ? it.probeDelayMs : 3000);
+    const wait = typeof it.probeDelayMs === "number" ? it.probeDelayMs : 3000;
+    const fire = () => {
+      /* sign-in owns the screen first; the probe waits its turn */
+      if (document.querySelector(".dx-auth-back")) { probeTimer = setTimeout(fire, 1500); return; }
+      openProbeModal(it.situationProbe);
+    };
+    probeTimer = setTimeout(fire, wait);
   }
 
   function openProbeModal(q) {
@@ -1718,6 +2057,7 @@
   function renderMaterialization(scene, it) {
     stage.classList.add("dx-scroll");
     scene.classList.add("dx-matpage");
+    requireOwnership();
     scheduleProbe(it);
 
     /* One masthead, not five stacked screens. The opener and the intro were
@@ -2071,7 +2411,7 @@
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  window.UnbifyDiscover = { open, close };
+  window.UnbifyDiscover = { open, close, openAudit: openAuditFlow };
   window.UnbifyBusy = { on: busyOn, off: busyOff, wrap: withBusy,
                         active: () => busyDepth > 0 };
 })();

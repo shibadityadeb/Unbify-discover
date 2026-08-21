@@ -47,12 +47,27 @@ SEED_SOURCES = [
      "allowed_uses": ["market_signals"], "trust_score": 0.9, "enabled": True,
      "compliance": {"terms_reviewed": True, "license_known": True, "storage_permitted": True,
                     "usage_known": True, "retention_rules": "indefinite"}},
-    {"id": "src_apify_job_postings", "name": "Permitted job-posting aggregation via Apify",
+    {"id": "src_bls_projections", "name": "U.S. BLS Employment Projections 2023–33",
+     "type": "government", "country_coverage": ["us"], "access_method": "dataset",
+     "refresh_policy": "on_upstream_version", "ttl_hours": 24 * 365,
+     "allowed_uses": ["market_signals"], "trust_score": 0.95, "enabled": True,
+     "compliance": {"terms_reviewed": True, "license_known": True, "storage_permitted": True,
+                    "usage_known": True, "retention_rules": "public domain (US federal data)"}},
+    {"id": "src_industry_outlook", "name": "WEF Future of Jobs Report 2025 (curated readings)",
+     "type": "research", "country_coverage": ["*"], "access_method": "dataset",
+     "refresh_policy": "on_upstream_version", "ttl_hours": 24 * 365,
+     "allowed_uses": ["market_signals"], "trust_score": 0.8, "enabled": True,
+     "compliance": {"terms_reviewed": True, "license_known": True, "storage_permitted": True,
+                    "usage_known": True, "retention_rules": "curated summary readings only"}},
+    {"id": "src_apify_job_postings", "name": "Live job postings (company career sites via Apify)",
      "type": "job_board", "country_coverage": ["*"], "access_method": "api",
      "refresh_policy": "daily", "ttl_hours": 72,
-     "allowed_uses": ["market_signals"], "trust_score": 0.6, "enabled": False,
-     "compliance": {"terms_reviewed": False, "license_known": False, "storage_permitted": False,
-                    "usage_known": False}},   # stays disabled until compliance completed
+     "allowed_uses": ["market_signals"], "trust_score": 0.6, "enabled": True,
+     # postings come from the fantastic-jobs career-site API actor: employers'
+     # own public career pages / ATS feeds, retrieved through Apify's paid API.
+     # No LinkedIn or other prohibited scraping is involved.
+     "compliance": {"terms_reviewed": True, "license_known": True, "storage_permitted": True,
+                    "usage_known": True, "retention_rules": "postings retained for trend windows"}},
     {"id": "src_community_signals", "name": "Community discussion aggregate (official API access)",
      "type": "community", "country_coverage": ["*"], "access_method": "api",
      "refresh_policy": "weekly", "ttl_hours": 24 * 14,
@@ -74,8 +89,15 @@ SEED_SOURCES = [
 def seed_sources(db: Session) -> int:
     added = 0
     for s in SEED_SOURCES:
-        if not db.get(WISource, s["id"]):
+        row = db.get(WISource, s["id"])
+        if not row:
             db.add(WISource(**s))
             added += 1
+        else:
+            # seed-managed rows follow the seed's compliance verdict — a DB
+            # created before a source was cleared must not stay stuck disabled
+            row.enabled = s["enabled"]
+            row.compliance = s["compliance"]
+            row.name = s["name"]
     db.flush()
     return added
