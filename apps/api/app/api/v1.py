@@ -566,6 +566,28 @@ def get_materialization(session_id: str, db: Session = Depends(get_db)):
     return {"sessionId": session.id, **payload}
 
 
+class SituationAnswer(BaseModel):
+    key: str = Field(max_length=40)
+    optionId: str = Field(max_length=40)
+    label: str | None = Field(default=None, max_length=80)
+    question: str | None = Field(default=None, max_length=200)
+
+
+@router.post("/discover/sessions/{session_id}/situation")
+def answer_situation(session_id: str, body: SituationAnswer, db: Session = Depends(get_db)):
+    """One answer to the model-chosen follow-up, and the next question if there
+    is one worth asking."""
+    session = _get_session(db, session_id)
+    from .. import situation
+    if not situation.save_answer(db, session, body.key, body.optionId,
+                                 body.label, body.question).get("ok"):
+        raise HTTPException(400, "bad answer")
+    nxt = situation.next_question(db, session)
+    emit(db, session_id, "situation.answered", {"key": body.key, "option": body.optionId})
+    db.commit()
+    return {"ok": True, "next": nxt}
+
+
 class DirectionChoice(BaseModel):
     optionId: str = Field(max_length=20)
 

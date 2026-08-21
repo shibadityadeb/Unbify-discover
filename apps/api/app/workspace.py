@@ -218,7 +218,8 @@ def available_actions(session: DiscoverSession) -> list[dict]:
         {"id": "test_direction", "label": "Test a direction", "hint": "A small, low-risk experiment"},
         {"id": "gaps", "label": "What am I missing?", "hint": "Skill and evidence gaps that matter"},
     ]
-    if str((session.practical_context or {}).get("career_stage", "")).startswith("employed"):
+    from .professional import current_status
+    if (current_status(session) or "").startswith("employed"):
         actions.append({"id": "improve", "label": "Improve where I am", "hint": "Leverage without leaving"})
     if est("domain_expertise") > 0.15:
         actions.append({"id": "expertise_income", "label": "Turn my expertise into income", "hint": "Consulting and service leverage"})

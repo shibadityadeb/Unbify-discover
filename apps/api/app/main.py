@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
@@ -100,6 +101,37 @@ class RevalidatingStatic(StaticFiles):
         if path.endswith((".js", ".css", ".html")) or path in ("", "/"):
             response.headers["Cache-Control"] = "no-cache, must-revalidate"
         return response
+
+
+ASSET_PATTERN = re.compile(r'(href|src)="((?:styles|discover|main)\.(?:css|js))"')
+
+
+def _asset_version(name: str) -> str:
+    """A short stamp that changes whenever the file does."""
+    path = settings.web_dir / name
+    try:
+        return f"{int(path.stat().st_mtime)}"
+    except OSError:
+        return "0"
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/index.html", include_in_schema=False)
+def index():
+    """Serve the shell with versioned asset URLs.
+
+    Cache-Control alone could not rescue anyone who had already cached these
+    files during a window when the server sent no cache headers at all: a
+    browser applies heuristic freshness to a header-less response and will not
+    revalidate until that expires, so the fix could never reach the person who
+    most needed it. A changing query string makes the stale entry unreachable
+    instead of merely stale.
+    """
+    html = (settings.web_dir / "index.html").read_text(encoding="utf-8")
+    html = ASSET_PATTERN.sub(
+        lambda m: f'{m.group(1)}="{m.group(2)}?v={_asset_version(m.group(2))}"', html)
+    return Response(content=html, media_type="text/html",
+                    headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 # the experience layer

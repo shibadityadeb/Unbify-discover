@@ -335,6 +335,10 @@
   function showRetry(interactionId, response, chosenEl) {
     const scene = stage.firstElementChild;
     if (!scene) return;
+    /* There is only ever one retry. Each failure used to append another block,
+       so a few attempts left a column of identical "That didn't go through /
+       Try again" pairs and no way to tell which button was live. */
+    scene.querySelectorAll(".dx-retry").forEach(el => el.remove());
     const box = document.createElement("div");
     box.className = "dx-retry";
     box.innerHTML = `<p class="dx-retry-text">That didn't go through.</p>`;
@@ -940,8 +944,28 @@
       row.innerHTML = `<span class="lbl">${esc(a.label)}</span><span class="hint">${esc(a.hint)}</span>
         <svg viewBox="0 0 34 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"><path d="M0 6 H31 M26 1.5 L31.5 6 L26 10.5"/></svg>`;
       row.addEventListener("click", async () => {
-        const detail = await wsApi("/actions/" + a.id);
-        showActionDetail(body, ws, detail);
+        /* These can take real time — the first action in a session runs the
+           whole recommendation pipeline, and against a distant database that is
+           tens of seconds. The click used to await it in silence with no error
+           path, so a slow action and a broken one looked identical: nothing
+           happened, and nothing ever would. */
+        if (row.dataset.busy === "1") return;
+        row.dataset.busy = "1";
+        row.classList.add("loading");
+        let detail = null;
+        try {
+          detail = await withBusy("Working that out…", () => wsApi("/actions/" + a.id));
+        } catch (e) {
+          detail = null;
+        }
+        row.dataset.busy = "";
+        row.classList.remove("loading");
+        if (detail) { showActionDetail(body, ws, detail); return; }
+        const failed = document.createElement("p");
+        failed.className = "ws-action-failed";
+        failed.textContent = "That didn't load. Tap again to retry.";
+        row.after(failed);
+        setTimeout(() => failed.remove(), 5000);
       });
       list.appendChild(row);
     });
@@ -1618,9 +1642,83 @@
     back.addEventListener("click", e => { if (e.target === back) close(); });
   }
 
+  /* The follow-up, a few seconds after the page settles.
+
+     It waits deliberately: arriving with the page would read as a form to fill
+     in before you are allowed to see anything, and the point is that the audit
+     is already yours. Which question appears is decided by the model from the
+     assessed situation — a founder is asked about their company, someone
+     employed about whether they want out, someone between roles about what they
+     can commit — so there is no branch here to keep in sync. */
+  let probeTimer = null;
+
+  function scheduleProbe(it) {
+    clearTimeout(probeTimer);
+    if (!it.situationProbe) return;
+    probeTimer = setTimeout(() => openProbeModal(it.situationProbe),
+                            typeof it.probeDelayMs === "number" ? it.probeDelayMs : 3000);
+  }
+
+  function openProbeModal(q) {
+    if (!q || document.querySelector(".dx-probe-back")) return;
+    const back = document.createElement("div");
+    back.className = "dx-probe-back";
+    const box = document.createElement("div");
+    box.className = "dx-probe dx-situation";
+    back.appendChild(box);
+    document.body.appendChild(back);
+    const close = () => back.remove();
+
+    const paint = step => {
+      box.innerHTML = `<p class="dx-probe-step">One thing before you go on</p>
+        <h3 class="dx-probe-q">${esc(step.question)}</h3>
+        ${step.why ? `<p class="dx-probe-why">${esc(step.why)}</p>` : ""}`;
+      const opts = document.createElement("div");
+      opts.className = "dx-probe-opts";
+      (step.options || []).forEach(o => {
+        const b = document.createElement("button");
+        b.className = "dx-pill";
+        b.textContent = o.label;
+        b.addEventListener("click", async () => {
+          b.classList.add("picked");
+          opts.querySelectorAll("button").forEach(x => { x.disabled = true; });
+          let res;
+          try {
+            res = await api(`/sessions/${sessionId}/situation`,
+                            { key: step.key, optionId: o.id, label: o.label,
+                              question: step.question });
+          } catch (e) {
+            box.innerHTML = `<p class="dx-probe-q">That didn't save — you can close this and carry on.</p>`;
+            return;
+          }
+          if (res && res.next) paint(res.next);
+          else {
+            box.innerHTML = `<h3 class="dx-probe-q">Noted.</h3>
+              <p class="dx-probe-done">That sharpens what we can say next.</p>`;
+            const d = document.createElement("button");
+            d.className = "dx-pill";
+            d.textContent = "Back to the page";
+            d.addEventListener("click", close);
+            box.appendChild(d);
+          }
+        });
+        opts.appendChild(b);
+      });
+      box.appendChild(opts);
+      const later = document.createElement("button");
+      later.className = "dx-pill dx-pill-quiet";
+      later.textContent = "Not now";
+      later.addEventListener("click", close);
+      box.appendChild(later);
+    };
+    paint(q);
+    back.addEventListener("click", e => { if (e.target === back) close(); });
+  }
+
   function renderMaterialization(scene, it) {
     stage.classList.add("dx-scroll");
     scene.classList.add("dx-matpage");
+    scheduleProbe(it);
 
     /* One masthead, not five stacked screens. The opener and the intro were
        saying the same thing four different ways, each line occupying a full
@@ -1720,8 +1818,11 @@
       place(s);
     }
 
-    /* DIRECTIONS + their experiments */
-    if ((it.directions || []).length) {
+    /* DIRECTIONS + their experiments — withheld on this page. Chapter IV is the
+       audit; recommending roles here was the page trying to conclude something
+       it has not earned. They remain available where someone asks for them, in
+       the workspace's Explore action. */
+    if (it.showDirections !== false && (it.directions || []).length) {
       const s = matSection("Worth a look",
                            "Not predictions. Each one shows why it came up and the cheapest way to check it.");
       const row = document.createElement("div");
@@ -1792,8 +1893,9 @@
       s2.appendChild(list);
       place(s2);
     }
-    /* the branch: job or build. It reorders what matters, never what is true. */
-    if (it.directionQuestion) {
+    /* the old inline job-or-build branch is gone: the follow-up is now one
+       model-chosen question in a modal a few seconds after the page settles */
+    if (false && it.directionQuestion) {
       const q = it.directionQuestion;
       const s3 = matSection("First, which question are you asking?");
       const p2 = document.createElement("p");
@@ -1925,8 +2027,8 @@
       if (!it.explore.next) { btn.textContent = "Answered"; btn.classList.add("picked"); }
     }
 
-    /* PRODUCT ROUTES — need first, product only as the answer to it */
-    (it.productRoutes || []).forEach(r => {
+    /* PRODUCT ROUTES — also withheld here for the same reason */
+    (it.showProductRoutes === false ? [] : (it.productRoutes || [])).forEach(r => {
       const s = document.createElement("section");
       s.className = "dx-mat-sec dx-close-sec dx-route";
       s.innerHTML = `

@@ -321,3 +321,30 @@ def test_idle_means_not_working_on_the_answer():
     # an in-progress drag has to hold it off between pointerdown and pointerup
     assert "onDrag" in js and "e.buttons > 0" in js, \
         "a held drag must keep the prompt away even with no other events"
+
+
+def test_only_one_retry_block_can_exist():
+    """Every failed submit appended another retry block, so a few attempts left
+    a stack of identical "That didn't go through / Try again" pairs with no way
+    to tell which button was live."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+    fn = js.split("function showRetry(")[1].split("\n  }")[0]
+    assert 'querySelectorAll(".dx-retry")' in fn and "remove()" in fn, \
+        "showRetry must clear any existing retry before adding one"
+    # and it must still preserve the answer rather than making them redo it
+    assert "respondMain(interactionId, response, chosenEl)" in fn
+
+
+def test_workspace_action_clicks_are_acknowledged():
+    """A workspace action can take tens of seconds — the first one in a session
+    runs the whole recommendation pipeline. The click used to await it in
+    silence with no error path, so a slow action and a broken one looked
+    identical: nothing happened, and nothing ever would."""
+    from pathlib import Path
+    js = (Path(__file__).resolve().parents[3] / "apps" / "web" / "discover.js").read_text()
+    handler = js.split('row.addEventListener("click"')[1].split("list.appendChild(row)")[0]
+    assert "withBusy" in handler, "the wait must be visible"
+    assert "catch" in handler, "a failed action must not vanish silently"
+    assert "retry" in handler.lower(), "the person needs a way to try again"
+    assert 'dataset.busy' in handler, "a second click must not start a second request"

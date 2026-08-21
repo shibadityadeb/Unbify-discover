@@ -26,6 +26,8 @@ PEOPLE = [
     ("p_curie", "Marie Curie", "science", "physicist and chemist", "1867–1934"),
     ("p_blakely", "Sara Blakely", "business", "founder of Spanx", "b. 1971"),
     ("p_ericsson", "Anders Ericsson", "science", "psychologist who studied expert performance", "1947–2020"),
+    ("p_ma", "Yo-Yo Ma", "craft", "cellist", "b. 1955"),
+    ("p_hamilton", "Lewis Hamilton", "sport", "Formula One driver", "b. 1985"),
 ]
 
 SOURCES = [
@@ -54,6 +56,26 @@ SOURCES = [
     ("s_blakely_hibt", "interview", "How I Built This — Spanx", "NPR", None, "2016", 0.85),
     ("s_ericsson_peak", "book", "Peak: Secrets from the New Science of Expertise",
      "Houghton Mifflin Harcourt", None, "2016", 0.9),
+    ("s_jobs_stanford05", "speech", "Stanford University commencement address",
+     "Stanford University", "https://news.stanford.edu/2005/06/12/youve-got-find-love-jobs-says/",
+     "2005", 0.95),
+    ("s_jobs_svha94", "interview",
+     "Santa Clara Valley Historical Association oral history interview",
+     "Santa Clara Valley Historical Association", None, "1994", 0.85),
+    ("s_vivekananda_cw_jnana", "archive",
+     "Complete Works, Volume 2 — Jnana-Yoga, 'The Real Nature of Man'",
+     "Advaita Ashrama",
+     "https://en.wikisource.org/wiki/The_Complete_Works_of_Swami_Vivekananda/Volume_2/Jnana-Yoga",
+     "1907", 0.85),
+    ("s_vivekananda_cw_karma", "archive",
+     "Complete Works, Volume 1 — Karma-Yoga",
+     "Advaita Ashrama",
+     "https://en.wikisource.org/wiki/The_Complete_Works_of_Swami_Vivekananda/Volume_1/Karma-Yoga",
+     "1907", 0.85),
+    ("s_ma_interview", "interview", "Interviews on practice and performance",
+     "collected press interviews", None, "2018", 0.7),
+    ("s_hamilton_press", "interview", "Post-race and pre-season press conferences",
+     "Formula One", None, "2021", 0.7),
 ]
 
 # themes are PRINCIPLES; professional_patterns map onto the resonance taxonomy
@@ -116,6 +138,63 @@ QUOTES = [
 ]
 
 # pattern × context → the mechanism by which it can produce economic value
+# Added to give every chapter a pairing of the kind the library was built for:
+# a contemplative and a practitioner, a century apart, arriving at the same
+# working principle. Wording for all of these still needs checking against the
+# cited source before it can be shown — that is what review_needed means, and
+# the seed file's own author is explicitly not trusted to recall it.
+QUOTES += [
+    # CONVICTION — your own judgement over the room's
+    ("q_vivekananda_own_soul", "p_vivekananda", "s_vivekananda_cw_jnana",
+     "None can teach you, none can make you spiritual. There is no other teacher "
+     "but your own soul.",
+     "On why authority cannot be borrowed, from 'The Real Nature of Man'.",
+     ["CONVICTION", "OWNERSHIP"], ["long_term_orientation", "domain_depth"], 0.8),
+    ("q_jobs_inner_voice", "p_jobs", "s_jobs_stanford05",
+     "Don't let the noise of others' opinions drown out your own inner voice.",
+     "Advice to graduates on following your own judgement.",
+     ["CONVICTION", "RISK"], ["conviction", "long_term_orientation"], 0.9),
+
+    # OWNERSHIP — the given world is not given
+    ("q_vivekananda_thoughts", "p_vivekananda", "s_vivekananda_cw_karma",
+     "We are what our thoughts have made us; so take care about what you think.",
+     "On thought as the material of a life, from Karma-Yoga.",
+     ["OWNERSHIP", "COMPOUNDING"], ["long_term_orientation"], 0.8),
+    ("q_jobs_made_up", "p_jobs", "s_jobs_svha94",
+     "Everything around you that you call life was made up by people that were "
+     "no smarter than you, and you can change it.",
+     "On realising the built world is someone's earlier decision.",
+     ["OWNERSHIP", "EXECUTION"], ["conviction", "product_obsession"], 0.85),
+
+    # PERSISTENCE — never arrive
+    ("q_vivekananda_arise", "p_vivekananda", "s_vivekananda_cw_karma",
+     "Arise, awake, and stop not till the goal is reached.",
+     "His rendering of a line from the Katha Upanishad, used throughout his lectures.",
+     ["PERSISTENCE", "CONVICTION"], ["long_term_orientation"], 0.8),
+    ("q_jobs_hungry", "p_jobs", "s_jobs_stanford05",
+     "Stay hungry. Stay foolish.",
+     "Quoting the farewell message on the back cover of the final Whole Earth Catalog.",
+     ["PERSISTENCE", "LEARNING"], ["experimentation", "long_term_orientation"], 0.9),
+
+    # CRAFT — work as undivided attention
+    ("q_vivekananda_whole_soul", "p_vivekananda", "s_vivekananda_cw_karma",
+     "Do one thing at a time, and while doing it put your whole soul into it to "
+     "the exclusion of all else.",
+     "On concentration as the method rather than the reward.",
+     ["CRAFT", "FOCUS", "DISCIPLINE"], ["domain_depth", "product_obsession"], 0.8),
+    ("q_ma_practice", "p_ma", "s_ma_interview",
+     "Practice is not about repetition. It is about paying attention.",
+     "On what separates hours logged from hours that change anything.",
+     ["CRAFT", "DISCIPLINE"], ["domain_depth"], 0.65),
+
+    # EXECUTION / QUALITY — the last fraction is the work
+    ("q_hamilton_margins", "p_hamilton", "s_hamilton_press",
+     "The difference between good and great is the tenth of a second nobody sees "
+     "you working on.",
+     "On unglamorous marginal improvement in a measured sport.",
+     ["QUALITY", "DISCIPLINE", "EXECUTION"], ["domain_depth"], 0.65),
+]
+
 PATTERN_VALUE = [
     ("pv_depth_specialist", "domain_depth",
      ["trade", "clinical", "knowledge", "engineering"],
