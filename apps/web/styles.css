@@ -1469,29 +1469,54 @@ html { overflow-x: hidden; }
    card on hover or keyboard focus. The journey's scroll-to-advance stays
    untouched — the strip advertises without asking for the scroll wheel. */
 .products {
-  /* above the side rails and parallax layers so a hover card is never
-     typed over by the aside behind it */
-  position: fixed; right: 4vw; bottom: 22px; z-index: 40;
-  display: flex; align-items: baseline; gap: 26px;
-}
-/* tighter viewports: the names carry the strip alone, clear of the sign-in */
-@media (max-width: 1360px) and (min-width: 761px) and (min-height: 481px) {
-  .products-label { display: none; }
-  .products-row { gap: 18px; }
+  /* corner block, above the side rails and parallax layers so a hover card
+     is never typed over by the aside behind it */
+  position: fixed; right: 3vw; bottom: 18px; z-index: 40;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
 }
 .products-label {
-  font-family: var(--sans, system-ui); font-size: 9px; letter-spacing: .3em;
+  display: flex; align-items: center; gap: 12px;
+  font-family: var(--sans, system-ui); font-size: 9.5px; letter-spacing: .32em;
   text-transform: uppercase; color: #a3762f;
 }
-.products-row { display: flex; gap: 24px; align-items: baseline; }
-.product { position: relative; cursor: default; outline: none; }
+.pl-line { display: block; width: 34px; height: 1px; background: rgba(178, 146, 94, .55); }
+.products-row { display: flex; gap: 12px; align-items: stretch; }
+.product {
+  position: relative; cursor: default; outline: none;
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px 11px 13px;
+  background: linear-gradient(178deg, rgba(253, 248, 236, .92), rgba(249, 238, 216, .88));
+  border: 1px solid rgba(163, 118, 47, .3); border-radius: 13px;
+  box-shadow: 0 4px 18px rgba(90, 66, 24, .08);
+  transition: transform .3s cubic-bezier(.3,.6,.3,1), box-shadow .3s ease,
+              border-color .3s ease;
+}
+.product:hover, .product:focus {
+  transform: translateY(-4px);
+  border-color: rgba(163, 118, 47, .55);
+  box-shadow: 0 10px 30px rgba(90, 66, 24, .16);
+}
+.product-ico {
+  display: flex; width: 30px; height: 30px; flex: 0 0 auto;
+  align-items: center; justify-content: center;
+  color: #a3762f; background: rgba(191, 154, 85, .13);
+  border: 1px solid rgba(163, 118, 47, .28); border-radius: 9px;
+  transition: color .3s ease, background .3s ease;
+}
+.product-ico svg { width: 19px; height: 19px; }
+.product:hover .product-ico, .product:focus .product-ico {
+  color: #8d6a2b; background: rgba(191, 154, 85, .22);
+}
 .product-name {
-  font-family: var(--sans, system-ui); font-weight: 400; font-size: 11.5px;
-  letter-spacing: .14em; color: #8d7f6c; white-space: nowrap;
-  border-bottom: 1px dotted rgba(163, 118, 47, .45); padding-bottom: 2px;
+  font-family: var(--sans, system-ui); font-weight: 400; font-size: 12px;
+  letter-spacing: .12em; color: #8d7f6c; white-space: nowrap;
   transition: color .25s ease;
 }
-.product-name em { font-style: normal; color: #8d6a2b; font-weight: 500; }
+.product-name em {
+  font-style: normal; display: block;
+  font-family: var(--serif, Georgia, serif); font-weight: 500;
+  font-size: 16.5px; letter-spacing: .02em; color: #8d6a2b; margin-top: 1px;
+}
 .product:hover .product-name, .product:focus .product-name { color: #6d5320; }
 .product-pop {
   position: absolute; bottom: calc(100% + 14px); right: 0;
@@ -1522,18 +1547,23 @@ html { overflow-x: hidden; }
     width: 100%; max-width: 32rem; margin: 26px auto 0;
     padding: 0 24px 140px; animation: none; opacity: 1;
   }
-  .products-label { text-align: center; font-size: 10px; margin-bottom: 18px; }
-  .products-row { display: flex; flex-direction: column; gap: 14px; }
+  .products { align-items: center; }
+  .products-label { justify-content: center; font-size: 10px; margin-bottom: 12px; }
+  .products-row { display: flex; flex-direction: column; gap: 14px; width: 100%; }
   .product {
+    flex-wrap: wrap; row-gap: 4px;
     background: rgba(253, 246, 230, .8); border: 1px solid rgba(163, 118, 47, .25);
     border-radius: 12px; padding: 18px 20px;
-    opacity: 0; transform: translateY(14px);
+    opacity: 0; transform: translateY(14px); box-shadow: none;
     transition: opacity .7s ease, transform .7s cubic-bezier(.3,.6,.3,1);
   }
   .product.in { opacity: 1; transform: translateY(0); }
-  .product-name { font-size: 13px; border-bottom: 0; padding-bottom: 0; }
+  .product:hover, .product:focus { transform: translateY(0); box-shadow: none; }
+  .product.in:hover, .product.in:focus { transform: translateY(0); }
+  .product-name { font-size: 12px; }
+  .product-name em { font-size: 18px; }
   .product-pop {
-    position: static; width: auto; padding: 0; margin-top: 10px;
+    position: static; width: auto; flex-basis: 100%; padding: 0; margin-top: 8px;
     background: none; border: 0; box-shadow: none;
     opacity: 1; visibility: visible; transform: none; pointer-events: auto;
     transition: none;
