@@ -1568,6 +1568,215 @@
     }, { once: true });
   }
 
+  /* ---------------- accounts: the audit belongs to someone ----------------
+
+     The journey is free and anonymous. The moment the audit appears is the
+     moment it becomes worth keeping — so that is where a name attaches. The
+     page renders behind a veil and nothing is usable until sign-in succeeds;
+     an account from a previous visit claims silently and never sees the veil. */
+
+  const AUTH_KEY = "unbify-auth";
+
+  function authState() {
+    try { return JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
+    catch (e) { return null; }
+  }
+  function setAuthState(token, user) {
+    try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch (e) { /* private mode */ }
+  }
+  function clearAuthState() {
+    try { localStorage.removeItem(AUTH_KEY); } catch (e) { /* private mode */ }
+  }
+
+  async function authApi(path, body, method) {
+    const auth = authState();
+    const res = await fetch("/v1" + path, {
+      method: method || (body === undefined ? "GET" : "POST"),
+      headers: {
+        "Content-Type": "application/json",
+        ...(auth && auth.token ? { "Authorization": "Bearer " + auth.token } : {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* non-json error body */ }
+    if (!res.ok) {
+      const err = new Error((data && data.detail) || ("auth " + res.status));
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  /* ---- Google sign-in: verified server-side, rendered only when configured ---- */
+  let authConfig = null, gsiLoading = null, googleHandler = null;
+
+  async function getAuthConfig() {
+    if (authConfig) return authConfig;
+    try { authConfig = await authApi("/auth/config"); }
+    catch (e) { authConfig = {}; }
+    return authConfig;
+  }
+
+  function loadGsi() {
+    if (gsiLoading) return gsiLoading;
+    gsiLoading = new Promise(resolve => {
+      const s = document.createElement("script");
+      s.src = "https://accounts.google.com/gsi/client";
+      s.async = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    });
+    return gsiLoading;
+  }
+
+  async function mountGoogleButton(container, onCredential) {
+    const cfg = await getAuthConfig();
+    if (!cfg.googleClientId) { container.remove(); return; }
+    const ok = await loadGsi();
+    if (!ok || !window.google?.accounts?.id) { container.remove(); return; }
+    googleHandler = onCredential;
+    window.google.accounts.id.initialize({
+      client_id: cfg.googleClientId,
+      callback: resp => { if (googleHandler) googleHandler(resp.credential); },
+    });
+    window.google.accounts.id.renderButton(
+      container.querySelector(".dx-auth-gslot"),
+      { theme: "outline", size: "large", text: "continue_with", width: 280 });
+  }
+
+  /* ---- the modal itself ---- */
+
+  function openAuthModal(opts) {
+    const { blocking = false, mode: startMode = "signup",
+            title, sub, onAuthed } = opts || {};
+    if (document.querySelector(".dx-auth-back")) return;
+    const back = document.createElement("div");
+    back.className = "dx-auth-back" + (blocking ? " blocking" : "");
+    const box = document.createElement("div");
+    box.className = "dx-auth";
+    back.appendChild(box);
+    document.body.appendChild(back);
+    let mode = startMode;
+
+    const close = () => { googleHandler = null; back.remove(); };
+    if (!blocking) back.addEventListener("click", e => { if (e.target === back) close(); });
+
+    const finish = async (token, user) => {
+      setAuthState(token, user);
+      try { await onAuthed?.(user, { notice, close }); }
+      catch (e) { notice(e.message || "Something went wrong. Try again."); return; }
+    };
+
+    let noticeEl;
+    const notice = msg => { if (noticeEl) { noticeEl.textContent = msg; noticeEl.hidden = !msg; } };
+
+    const paint = () => {
+      const signup = mode === "signup";
+      box.innerHTML = `
+        ${blocking ? "" : `<button class="dx-auth-x" aria-label="Close">×</button>`}
+        <p class="dx-auth-kicker">${esc(title || "Keep your audit")}</p>
+        <p class="dx-auth-sub">${esc(sub || "The journey was free. The audit is yours — sign in so it stays yours, under your name.")}</p>
+        <div class="dx-auth-tabs">
+          <button class="dx-auth-tab ${signup ? "on" : ""}" data-m="signup">Create account</button>
+          <button class="dx-auth-tab ${signup ? "" : "on"}" data-m="login">Sign in</button>
+        </div>
+        <form class="dx-auth-form">
+          ${signup ? `<input class="dx-auth-in" name="name" type="text" placeholder="Your name" autocomplete="name" required maxlength="120">` : ""}
+          <input class="dx-auth-in" name="email" type="email" placeholder="Email" autocomplete="email" required maxlength="320">
+          <input class="dx-auth-in" name="password" type="password" placeholder="${signup ? "Password (8+ characters)" : "Password"}" autocomplete="${signup ? "new-password" : "current-password"}" required minlength="${signup ? 8 : 1}" maxlength="200">
+          <button class="dx-commit ready dx-auth-go" type="submit">${signup ? "Create my account" : "Sign in"}</button>
+        </form>
+        <p class="dx-auth-err" hidden></p>
+        <div class="dx-auth-google"><p class="dx-auth-or">or</p><div class="dx-auth-gslot"></div></div>`;
+      noticeEl = box.querySelector(".dx-auth-err");
+      box.querySelector(".dx-auth-x")?.addEventListener("click", close);
+      box.querySelectorAll(".dx-auth-tab").forEach(t =>
+        t.addEventListener("click", () => { mode = t.dataset.m; paint(); }));
+      box.querySelector(".dx-auth-form").addEventListener("submit", async e => {
+        e.preventDefault();
+        const f = e.target;
+        const go = f.querySelector(".dx-auth-go");
+        go.disabled = true; go.textContent = "One moment…";
+        try {
+          const out = signup
+            ? await authApi("/auth/signup", { name: f.name.value.trim(), email: f.email.value.trim(), password: f.password.value })
+            : await authApi("/auth/login", { email: f.email.value.trim(), password: f.password.value });
+          await finish(out.token, out.user);
+        } catch (err) {
+          notice(err.message || "That didn't work. Try again.");
+          go.disabled = false; go.textContent = signup ? "Create my account" : "Sign in";
+        }
+      });
+      mountGoogleButton(box.querySelector(".dx-auth-google"), async credential => {
+        try {
+          const out = await authApi("/auth/google", { credential });
+          await finish(out.token, out.user);
+        } catch (err) { notice(err.message || "Google sign-in didn't work."); }
+      });
+    };
+    paint();
+    return { close, notice };
+  }
+
+  /* ---- gate: the materialized audit stays veiled until it has an owner ---- */
+
+  async function claimCurrent() {
+    await authApi("/auth/claim", { sessionId });
+  }
+
+  function requireOwnership() {
+    const auth = authState();
+    const gateOnAuthed = async (user, ui) => {
+      try { await claimCurrent(); }
+      catch (e) {
+        if (e.status === 409) { ui?.notice(e.message); return; }
+        throw e;
+      }
+      ui?.close();
+    };
+    if (!auth) { openAuthModal({ blocking: true, onAuthed: gateOnAuthed }); return; }
+    claimCurrent().catch(e => {
+      if (e.status === 401) clearAuthState();
+      openAuthModal({ blocking: true, onAuthed: gateOnAuthed });
+    });
+  }
+
+  /* ---- homepage: "Already have an audit?" ---- */
+
+  async function openAuditPage() {
+    const me = await authApi("/auth/me");
+    if (!me.auditSessionId) { const e = new Error("You don't have an audit yet — the journey comes first, and it's free."); e.code = "no_audit"; throw e; }
+    sessionId = me.auditSessionId;
+    ensureDom();
+    document.body.classList.add("dx-open");
+    const data = await api(`/sessions/${sessionId}/materialization`, undefined, { method: "GET" });
+    clearStage();
+    handlePayload({ chapter: "TRANSFORMATION", state: "MATERIALIZATION", interaction: data });
+  }
+
+  function openAuditFlow() {
+    const attempt = async (user, ui) => {
+      await withBusy("Fetching your audit…", () => openAuditPage());
+      ui?.close();
+    };
+    if (authState()) {
+      attempt().catch(e => {
+        if (e.status === 401) { clearAuthState(); openAuditFlow(); return; }
+        openAuthModal({ mode: "login", title: "Your audit",
+                        sub: e.code === "no_audit" ? e.message : "Sign in to open the audit you already made.",
+                        onAuthed: attempt });
+      });
+      return;
+    }
+    openAuthModal({ mode: "login", title: "Your audit",
+                    sub: "Sign in to open the audit you already made.",
+                    onAuthed: attempt });
+  }
+
+  document.getElementById("haveAuditBtn")?.addEventListener("click", openAuditFlow);
+
   /* ---- Materialization: the story becomes objects you can act on ---- */
 
   async function objectStatus(kind, key, status, reason) {
@@ -1655,8 +1864,13 @@
   function scheduleProbe(it) {
     clearTimeout(probeTimer);
     if (!it.situationProbe) return;
-    probeTimer = setTimeout(() => openProbeModal(it.situationProbe),
-                            typeof it.probeDelayMs === "number" ? it.probeDelayMs : 3000);
+    const wait = typeof it.probeDelayMs === "number" ? it.probeDelayMs : 3000;
+    const fire = () => {
+      /* sign-in owns the screen first; the probe waits its turn */
+      if (document.querySelector(".dx-auth-back")) { probeTimer = setTimeout(fire, 1500); return; }
+      openProbeModal(it.situationProbe);
+    };
+    probeTimer = setTimeout(fire, wait);
   }
 
   function openProbeModal(q) {
@@ -1718,6 +1932,7 @@
   function renderMaterialization(scene, it) {
     stage.classList.add("dx-scroll");
     scene.classList.add("dx-matpage");
+    requireOwnership();
     scheduleProbe(it);
 
     /* One masthead, not five stacked screens. The opener and the intro were
@@ -2071,7 +2286,7 @@
     return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
-  window.UnbifyDiscover = { open, close };
+  window.UnbifyDiscover = { open, close, openAudit: openAuditFlow };
   window.UnbifyBusy = { on: busyOn, off: busyOff, wrap: withBusy,
                         active: () => busyDepth > 0 };
 })();

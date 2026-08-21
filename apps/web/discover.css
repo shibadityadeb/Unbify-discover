@@ -780,7 +780,8 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 
 /* the probe modal */
 .dx-probe-back {
-  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  /* above #dx (z 110): the experience overlay must not swallow its own modals */
+  position: fixed; inset: 0; z-index: 120; display: flex; align-items: center; justify-content: center;
   background: rgba(60, 44, 18, .32); backdrop-filter: blur(3px); padding: 24px;
 }
 .dx-probe {
@@ -796,6 +797,59 @@ body.dx-open .dx { visibility: visible; opacity: 1; transition: opacity 1s ease 
 .dx-probe-opts { display: flex; flex-direction: column; gap: 10px; margin: 22px 0 8px; }
 .dx-probe-done { font-family: var(--sans); font-size: 13.5px; line-height: 1.6; color: #8a6c3c; margin: 14px 0 18px; }
 @media (prefers-reduced-motion: reduce) { .dx-probe-back { backdrop-filter: none; } }
+
+/* ---------------- sign-in: the audit gets an owner ----------------
+   The blocking variant greys the whole page out and offers no way past —
+   the audit underneath stays visible enough to be worth keeping, unreadable
+   enough that signing in is the only way to use it. */
+.dx-auth-back {
+  /* above #dx (z 110), which itself sits above the intro page */
+  position: fixed; inset: 0; z-index: 130; display: flex; align-items: center; justify-content: center;
+  background: rgba(60, 44, 18, .38); backdrop-filter: blur(4px) grayscale(.7); padding: 24px;
+}
+.dx-auth-back.blocking { background: rgba(52, 38, 15, .5); }
+.dx-auth {
+  position: relative;
+  background: #fdf6e6; border: 1px solid rgba(163, 118, 47, .3); border-radius: 14px;
+  padding: 30px 32px 26px; width: min(400px, 92vw); text-align: center;
+  box-shadow: 0 18px 60px rgba(90, 66, 24, .22);
+}
+.dx-auth-x {
+  position: absolute; top: 10px; right: 14px; font-size: 22px; line-height: 1;
+  color: #b08a3d; background: none; border: 0; cursor: pointer; padding: 4px;
+}
+.dx-auth-kicker {
+  font-family: var(--serif); font-size: 22px; color: #7a5d28; font-weight: 500;
+}
+.dx-auth-sub {
+  font-family: var(--sans); font-size: 13px; line-height: 1.6; color: #8a6c3c;
+  margin: 10px 0 18px;
+}
+.dx-auth-tabs {
+  display: flex; gap: 6px; justify-content: center; margin-bottom: 16px;
+}
+.dx-auth-tab {
+  font-family: var(--sans); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: #a08a5e; background: none; border: 0; border-bottom: 1.5px solid transparent;
+  padding: 6px 10px; cursor: pointer;
+}
+.dx-auth-tab.on { color: #7a5d28; border-bottom-color: #bf9a55; }
+.dx-auth-form { display: flex; flex-direction: column; gap: 10px; }
+.dx-auth-in {
+  font-family: var(--sans); font-size: 14px; color: #55483a;
+  background: #fffdf6; border: 1px solid rgba(163, 118, 47, .35); border-radius: 8px;
+  padding: 11px 13px; outline: none;
+}
+.dx-auth-in:focus { border-color: #bf9a55; box-shadow: 0 0 0 3px rgba(191, 154, 85, .14); }
+.dx-auth-go { margin-top: 4px; }
+.dx-auth-err {
+  font-family: var(--sans); font-size: 12.5px; color: #b0703d; margin-top: 12px; line-height: 1.5;
+}
+.dx-auth-or {
+  font-family: var(--sans); font-size: 10px; letter-spacing: .3em; text-transform: uppercase;
+  color: #b3a075; margin: 16px 0 10px;
+}
+.dx-auth-gslot { display: flex; justify-content: center; }
 
 /* ============ the blocking wait ============
    Used only where the next thing genuinely cannot start yet — chapter entry

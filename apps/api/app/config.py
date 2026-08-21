@@ -37,6 +37,7 @@ class Settings:
     litellm_base_url: str = "https://litellm.gtor.app/v1"
     litellm_model: str = "gpt-5.6-luna"
     session_secret: str = field(default_factory=lambda: os.environ.get("SESSION_SECRET", "dev-only-secret"))
+    google_client_id: str = field(default_factory=lambda: os.environ.get("GOOGLE_CLIENT_ID", ""))
     app_url: str = field(default_factory=lambda: os.environ.get("APP_URL", "http://localhost:8000"))
     apify_token: str = field(default_factory=lambda: os.environ.get("APIFY_TOKEN", ""))
     apify_webhook_secret: str = field(default_factory=lambda: os.environ.get("APIFY_WEBHOOK_SECRET", ""))

@@ -33,6 +33,19 @@ class User(Base):
     __tablename__ = "users"
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
     email: Mapped[str | None] = mapped_column(String(320), unique=True, nullable=True)
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    google_sub: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class AuthToken(Base):
+    """Opaque bearer tokens. One row per issued token so logout/revocation is a
+    delete, and a stolen DB row still reveals only a random string."""
+    __tablename__ = "auth_tokens"
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 

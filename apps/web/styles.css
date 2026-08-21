@@ -265,6 +265,15 @@ body {
 
 /* ---------- CTA ---------- */
 .cta-wrap { position: relative; margin-top: 5vh; width: 218px; height: 218px; }
+.have-audit {
+  margin-top: 18px; background: none; border: 0; cursor: pointer;
+  font-family: var(--sans, system-ui); font-size: 12px; letter-spacing: .12em;
+  color: #a08a5e;
+}
+.have-audit span {
+  color: #8d6a2b; border-bottom: 1px solid rgba(141, 106, 43, .45); padding-bottom: 1px;
+}
+.have-audit:hover span { color: #6d5320; border-bottom-color: #6d5320; }
 .halo {
   position: absolute; inset: -46%; border-radius: 50%; pointer-events: none;
   background: radial-gradient(50% 50% at 50% 50%, rgba(249,214,150,.55) 0%, rgba(249,214,150,.22) 45%, rgba(249,214,150,0) 72%);

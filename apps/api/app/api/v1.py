@@ -151,9 +151,140 @@ def advance(session_id: str, body: Advance, db: Session = Depends(get_db)):
         orchestrator.acknowledge_transition(db, session, body.to)
     except statemachine.InvalidTransition as e:
         raise HTTPException(409, str(e))
+    # The journey is free and anonymous; the audit is where a name attaches.
+    # Entering the persistent workspace without an owner would strand the data.
+    # Raised after validation so illegal jumps still read as 409, and before
+    # commit so the state change is discarded along with the refusal.
+    if body.to == "DISCOVER_WORKSPACE" and not _session_owner(db, session):
+        raise HTTPException(401, "sign in to keep your audit")
     step = orchestrator.next_step(db, session)
     db.commit()
     return {"sessionId": session.id, **step}
+
+
+# ---------------- accounts: the audit belongs to someone ----------------
+
+class SignupIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=200)
+
+
+class LoginIn(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class GoogleIn(BaseModel):
+    credential: str = Field(min_length=20, max_length=4096)
+
+
+class ClaimIn(BaseModel):
+    sessionId: str = Field(min_length=8, max_length=64)
+
+
+def _session_owner(db: Session, session: DiscoverSession):
+    from ..models import User
+    anon = db.get(AnonymousIdentity, session.anon_id)
+    return db.get(User, anon.user_id) if anon and anon.user_id else None
+
+
+def _bearer(request: Request) -> str | None:
+    header = request.headers.get("authorization", "")
+    return header[7:].strip() if header.lower().startswith("bearer ") else None
+
+
+def _require_user(request: Request, db: Session):
+    from .. import auth
+    user = auth.user_for_token(db, _bearer(request))
+    if not user:
+        raise HTTPException(401, "not signed in")
+    return user
+
+
+@router.get("/auth/config")
+def auth_config():
+    """What the client needs to draw the right buttons — never secrets."""
+    return {"googleClientId": settings.google_client_id or None}
+
+
+@router.post("/auth/signup")
+def signup(body: SignupIn, request: Request, db: Session = Depends(get_db)):
+    from .. import auth
+    from ..models import User
+    _rate_limit(f"auth:{request.client.host if request.client else 'x'}", 20)
+    email = body.email.strip().lower()
+    if "@" not in email:
+        raise HTTPException(400, "that doesn't look like an email")
+    if auth.user_by_email(db, email):
+        raise HTTPException(409, "an account with this email already exists")
+    user = User(email=email, name=body.name.strip(),
+                password_hash=auth.hash_password(body.password))
+    db.add(user)
+    db.flush()
+    token = auth.issue_token(db, user)
+    db.commit()
+    return {"token": token, "user": auth.public_user(user)}
+
+
+@router.post("/auth/login")
+def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
+    from .. import auth
+    _rate_limit(f"auth:{request.client.host if request.client else 'x'}", 20)
+    user = auth.user_by_email(db, body.email)
+    if not user or not auth.verify_password(body.password, user.password_hash):
+        raise HTTPException(401, "email or password doesn't match")
+    token = auth.issue_token(db, user)
+    db.commit()
+    return {"token": token, "user": auth.public_user(user)}
+
+
+@router.post("/auth/google")
+def google_auth(body: GoogleIn, request: Request, db: Session = Depends(get_db)):
+    from .. import auth
+    from ..models import User
+    _rate_limit(f"auth:{request.client.host if request.client else 'x'}", 20)
+    claims = auth.verify_google_credential(body.credential)
+    if not claims:
+        raise HTTPException(401, "Google sign-in could not be verified")
+    email = (claims.get("email") or "").lower()
+    user = auth.user_by_email(db, email) if email else None
+    if not user:
+        user = User(email=email or None, name=claims.get("name"),
+                    google_sub=claims.get("sub"))
+        db.add(user)
+        db.flush()
+    elif not user.google_sub:
+        user.google_sub = claims.get("sub")
+        user.name = user.name or claims.get("name")
+    token = auth.issue_token(db, user)
+    db.commit()
+    return {"token": token, "user": auth.public_user(user)}
+
+
+@router.get("/auth/me")
+def me(request: Request, db: Session = Depends(get_db)):
+    from .. import auth
+    user = _require_user(request, db)
+    latest = auth.latest_audit_session(db, user)
+    return {"user": auth.public_user(user),
+            "auditSessionId": latest.id if latest else None}
+
+
+@router.post("/auth/claim")
+def claim(body: ClaimIn, request: Request, db: Session = Depends(get_db)):
+    """Attach a journey to the signed-in person. Idempotent; a session already
+    owned by someone else cannot be quietly re-owned."""
+    from .. import auth
+    user = _require_user(request, db)
+    session = _get_session(db, body.sessionId)
+    owner = _session_owner(db, session)
+    if owner and owner.id != user.id:
+        raise HTTPException(409, "this journey already belongs to another account")
+    auth.claim_session(db, session, user)
+    emit(db, session.id, "session.claimed", {"user": user.id})
+    db.commit()
+    return {"ok": True, "user": auth.public_user(user)}
 
 
 @router.get("/discover/sessions/{session_id}/profile")
